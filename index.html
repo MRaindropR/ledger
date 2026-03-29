@@ -16,6 +16,14 @@ input[type=number]{-moz-appearance:textfield}
 .fi{animation:fadeIn .2s ease-out}
 button{cursor:pointer}
 textarea{resize:vertical}
+/* === 移动端响应式 === */
+@media(max-width:640px){
+  .sl-sidebar{display:none!important}
+  .sl-topbar{display:flex!important}
+  .sl-bottomnav{display:flex!important}
+  .sl-main{padding-bottom:68px!important}
+  .sl-fab{display:flex!important}
+}
 </style>
 </head>
 <body>
@@ -4867,136 +4875,151 @@ function App() {
     l: '备份',
     ic: '💾'
   }];
+  /* 导航项标签映射（顶部栏标题用） */
+  const navLabel = nav.reduce((m,n)=>{m[n.id]=n.l;return m},{});
+
   return /*#__PURE__*/React.createElement("div", {
+    style: { display: 'flex', flexDirection: 'column', height: '100vh', background: '#f5f6fa' }
+  },
+
+  /* ===== 移动端顶部栏（桌面隐藏） ===== */
+  /*#__PURE__*/React.createElement("header", {
+    className: 'sl-topbar',
     style: {
-      display: 'flex',
-      height: '100vh',
-      background: '#f5f6fa'
+      display: 'none', alignItems: 'center', justifyContent: 'space-between',
+      padding: '0 16px', height: 52, background: '#fff',
+      borderBottom: '1px solid #ebedf0', flexShrink: 0,
+      position: 'sticky', top: 0, zIndex: 100
     }
-  }, /*#__PURE__*/React.createElement("aside", {
-    style: {
-      width: 195,
-      minWidth: 195,
-      background: '#fff',
-      borderRight: '1px solid #ebedf0',
-      display: 'flex',
-      flexDirection: 'column'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: '16px 14px',
-      borderBottom: '1px solid #f3f4f6'
-    }
-  }, /*#__PURE__*/React.createElement("h1", {
-    style: {
-      fontSize: 17,
-      fontWeight: 700,
-      color: '#4f46e5',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 6
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 20
-    }
-  }, "\uD83D\uDCD2"), "\u667A\u80FD\u8BB0\u8D26"), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: 10,
-      color: '#bbb',
-      marginTop: 2
-    }
-  }, "SmartLedger v2.7"),
-  /* ---- Cloud sync status ---- */
-  cloudKey && /*#__PURE__*/React.createElement("div", { style: { marginTop:4, padding:'3px 8px', borderRadius:6, background: cloudStatus.syncing ? '#eff6ff' : cloudStatus.ok === true ? '#ecfdf5' : cloudStatus.ok === false ? '#fef2f2' : '#f9fafb', display:'flex', alignItems:'center', gap:4, fontSize:10 } },
-    /*#__PURE__*/React.createElement("span", null, cloudStatus.syncing ? '🔄' : cloudStatus.ok === true ? '☁️' : cloudStatus.ok === false ? '⚠️' : '☁️'),
-    /*#__PURE__*/React.createElement("span", { style:{ color: cloudStatus.syncing ? '#3b82f6' : cloudStatus.ok === true ? '#059669' : cloudStatus.ok === false ? '#dc2626' : '#888', flex:1 } },
-      cloudStatus.syncing ? '同步中...' : cloudStatus.ok === true ? '云端已同步' : cloudStatus.ok === false ? '同步失败' : '云同步已开启'
+  },
+    /*#__PURE__*/React.createElement("div", { style: { display:'flex', alignItems:'center', gap:6 } },
+      /*#__PURE__*/React.createElement("span", { style: { fontSize:20 } }, '\uD83D\uDCD2'),
+      /*#__PURE__*/React.createElement("span", { style: { fontSize:16, fontWeight:700, color:'#4f46e5' } }, navLabel[pg] || '\u667A\u80FD\u8BB0\u8D26')
     ),
-    /*#__PURE__*/React.createElement("span", { onClick:()=>setPg('bak'), style:{ cursor:'pointer', color:'#bbb', fontSize:9 } }, '设置')
+    cloudKey && /*#__PURE__*/React.createElement("span", { style: { fontSize:18 } },
+      cloudStatus.syncing ? '🔄' : cloudStatus.ok === true ? '☁️' : cloudStatus.ok === false ? '⚠️' : '☁️'
+    )
   ),
-  /* ---- File link status ---- */
-  fileStatus.linked
-    ? /*#__PURE__*/React.createElement("div", { style: { marginTop:6, padding:'4px 8px', borderRadius:6, background:'#ecfdf5', display:'flex', alignItems:'center', gap:4, fontSize:10 } },
-        /*#__PURE__*/React.createElement("span", { style: { color:'#059669' } }, "\u2705"),
-        /*#__PURE__*/React.createElement("span", { style: { color:'#059669', fontWeight:500, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, fileStatus.name),
-        /*#__PURE__*/React.createElement("span", { onClick:()=>unlinkJsonFile(), style: { cursor:'pointer', color:'#aaa', fontSize:9 }, title:'\u53D6\u6D88\u5173\u8054' }, '\u2715'))
-    : fileStatus.remembered
-    ? /*#__PURE__*/React.createElement("div", { style: { marginTop:6 } },
-        /*#__PURE__*/React.createElement("button", { onClick:()=>reconnectFile(dp), style: { width:'100%', padding:'5px 8px', borderRadius:6, border:'1px solid #c7d2fe', background:'#eef2ff', fontSize:10, color:'#4338ca', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:4, fontWeight:500 } },
-          '\uD83D\uDD17', '\u91CD\u65B0\u8FDE\u63A5 ', fileStatus.name),
-        /*#__PURE__*/React.createElement("div", { style: { display:'flex', gap:3, marginTop:3 } },
-          /*#__PURE__*/React.createElement("button", { onClick:()=>linkJsonFile(dp), style: { flex:1, padding:'2px 0', borderRadius:4, border:'none', background:'none', fontSize:9, color:'#aaa', cursor:'pointer' } }, '\u6362\u4E00\u4E2A\u6587\u4EF6'),
-          /*#__PURE__*/React.createElement("button", { onClick:()=>{_clearHandleFromIDB();setFileStatus({linked:false,name:'',remembered:false})}, style: { flex:1, padding:'2px 0', borderRadius:4, border:'none', background:'none', fontSize:9, color:'#aaa', cursor:'pointer' } }, '\u5FD8\u8BB0\u6587\u4EF6')))
-    : /*#__PURE__*/React.createElement("div", { style: { marginTop:6, display:'flex', gap:3 } },
-        /*#__PURE__*/React.createElement("button", { onClick:()=>linkJsonFile(dp), style: { flex:1, padding:'3px 0', borderRadius:5, border:'1px dashed #d1d5db', background:'none', fontSize:10, color:'#888', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:3 } }, '\uD83D\uDCC2', '\u5173\u8054\u6587\u4EF6'),
-        /*#__PURE__*/React.createElement("button", { onClick:()=>createJsonFile(st), style: { flex:1, padding:'3px 0', borderRadius:5, border:'1px dashed #d1d5db', background:'none', fontSize:10, color:'#888', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:3 } }, '\u2795', '\u65B0\u5EFA\u6587\u4EF6'))
-), /*#__PURE__*/React.createElement("nav", {
+
+  /* ===== 主体行：侧边栏 + 内容 ===== */
+  /*#__PURE__*/React.createElement("div", { style: { display:'flex', flex:1, overflow:'hidden' } },
+
+    /* ----- 桌面侧边栏 ----- */
+    /*#__PURE__*/React.createElement("aside", {
+      className: 'sl-sidebar',
+      style: { width:195, minWidth:195, background:'#fff', borderRight:'1px solid #ebedf0', display:'flex', flexDirection:'column', flexShrink:0 }
+    },
+      /*#__PURE__*/React.createElement("div", { style: { padding:'16px 14px', borderBottom:'1px solid #f3f4f6' } },
+        /*#__PURE__*/React.createElement("h1", { style: { fontSize:17, fontWeight:700, color:'#4f46e5', display:'flex', alignItems:'center', gap:6 } },
+          /*#__PURE__*/React.createElement("span", { style: { fontSize:20 } }, "\uD83D\uDCD2"), "\u667A\u80FD\u8BB0\u8D26"),
+        /*#__PURE__*/React.createElement("p", { style: { fontSize:10, color:'#bbb', marginTop:2 } }, "SmartLedger v2.7"),
+        cloudKey && /*#__PURE__*/React.createElement("div", { style: { marginTop:4, padding:'3px 8px', borderRadius:6, background: cloudStatus.syncing ? '#eff6ff' : cloudStatus.ok === true ? '#ecfdf5' : cloudStatus.ok === false ? '#fef2f2' : '#f9fafb', display:'flex', alignItems:'center', gap:4, fontSize:10 } },
+          /*#__PURE__*/React.createElement("span", null, cloudStatus.syncing ? '🔄' : cloudStatus.ok === true ? '☁️' : cloudStatus.ok === false ? '⚠️' : '☁️'),
+          /*#__PURE__*/React.createElement("span", { style:{ color: cloudStatus.syncing ? '#3b82f6' : cloudStatus.ok === true ? '#059669' : cloudStatus.ok === false ? '#dc2626' : '#888', flex:1 } },
+            cloudStatus.syncing ? '同步中...' : cloudStatus.ok === true ? '云端已同步' : cloudStatus.ok === false ? '同步失败' : '云同步已开启'),
+          /*#__PURE__*/React.createElement("span", { onClick:()=>setPg('bak'), style:{ cursor:'pointer', color:'#bbb', fontSize:9 } }, '设置')
+        ),
+        fileStatus.linked
+          ? /*#__PURE__*/React.createElement("div", { style: { marginTop:6, padding:'4px 8px', borderRadius:6, background:'#ecfdf5', display:'flex', alignItems:'center', gap:4, fontSize:10 } },
+              /*#__PURE__*/React.createElement("span", { style: { color:'#059669' } }, "\u2705"),
+              /*#__PURE__*/React.createElement("span", { style: { color:'#059669', fontWeight:500, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' } }, fileStatus.name),
+              /*#__PURE__*/React.createElement("span", { onClick:()=>unlinkJsonFile(), style: { cursor:'pointer', color:'#aaa', fontSize:9 }, title:'\u53D6\u6D88\u5173\u8054' }, '\u2715'))
+          : fileStatus.remembered
+          ? /*#__PURE__*/React.createElement("div", { style: { marginTop:6 } },
+              /*#__PURE__*/React.createElement("button", { onClick:()=>reconnectFile(dp), style: { width:'100%', padding:'5px 8px', borderRadius:6, border:'1px solid #c7d2fe', background:'#eef2ff', fontSize:10, color:'#4338ca', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:4, fontWeight:500 } },
+                '\uD83D\uDD17', '\u91CD\u65B0\u8FDE\u63A5 ', fileStatus.name),
+              /*#__PURE__*/React.createElement("div", { style: { display:'flex', gap:3, marginTop:3 } },
+                /*#__PURE__*/React.createElement("button", { onClick:()=>linkJsonFile(dp), style: { flex:1, padding:'2px 0', borderRadius:4, border:'none', background:'none', fontSize:9, color:'#aaa', cursor:'pointer' } }, '\u6362\u4E00\u4E2A\u6587\u4EF6'),
+                /*#__PURE__*/React.createElement("button", { onClick:()=>{_clearHandleFromIDB();setFileStatus({linked:false,name:'',remembered:false})}, style: { flex:1, padding:'2px 0', borderRadius:4, border:'none', background:'none', fontSize:9, color:'#aaa', cursor:'pointer' } }, '\u5FD8\u8BB0\u6587\u4EF6')))
+          : /*#__PURE__*/React.createElement("div", { style: { marginTop:6, display:'flex', gap:3 } },
+              /*#__PURE__*/React.createElement("button", { onClick:()=>linkJsonFile(dp), style: { flex:1, padding:'3px 0', borderRadius:5, border:'1px dashed #d1d5db', background:'none', fontSize:10, color:'#888', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:3 } }, '\uD83D\uDCC2', '\u5173\u8054\u6587\u4EF6'),
+              /*#__PURE__*/React.createElement("button", { onClick:()=>createJsonFile(st), style: { flex:1, padding:'3px 0', borderRadius:5, border:'1px dashed #d1d5db', background:'none', fontSize:10, color:'#888', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:3 } }, '\u2795', '\u65B0\u5EFA\u6587\u4EF6'))
+      ),
+      /*#__PURE__*/React.createElement("nav", { style: { flex:1, padding:'8px 6px' } },
+        nav.map(n => /*#__PURE__*/React.createElement("button", {
+          key: n.id, onClick: () => setPg(n.id), style: S.navBtn(pg === n.id)
+        }, /*#__PURE__*/React.createElement("span", { style: { fontSize:15, width:22, textAlign:'center' } }, n.ic), n.l))
+      ),
+      /*#__PURE__*/React.createElement("div", { style: { padding:'8px 8px', borderTop:'1px solid #f3f4f6' } },
+        /*#__PURE__*/React.createElement("button", {
+          onClick: () => setModal(true),
+          style: { width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:5, padding:'9px 0', borderRadius:8, background:'#4f46e5', color:'#fff', fontSize:13, fontWeight:500, border:'none' }
+        }, "\uFF0B \u8BB0\u4E00\u7B14")
+      )
+    ),
+
+    /* ----- 主内容区 ----- */
+    /*#__PURE__*/React.createElement("main", {
+      className: 'sl-main',
+      style: { flex:1, overflowY:'auto' }
+    },
+      pg === 'dash' && /*#__PURE__*/React.createElement(Dash, { st:st, go:setPg }),
+      pg === 'txs'  && /*#__PURE__*/React.createElement(TxPage, { st:st, dp:dp }),
+      pg === 'imp'  && /*#__PURE__*/React.createElement(ImpPage, { st:st, dp:dp }),
+      pg === 'rep'  && /*#__PURE__*/React.createElement(RepPage, { st:st }),
+      pg === 'acc'  && /*#__PURE__*/React.createElement(AccPage, { st:st, dp:dp }),
+      pg === 'bak'  && /*#__PURE__*/React.createElement(BackupPage, { st:st, dp:dp, cloudStatus:cloudStatus, cloudKey:cloudKey, setCloudKeyState:setCloudKeyState })
+    )
+  ),
+
+  /* ===== 移动端底部导航栏（桌面隐藏） ===== */
+  /*#__PURE__*/React.createElement("nav", {
+    className: 'sl-bottomnav',
     style: {
-      flex: 1,
-      padding: '8px 6px'
+      display: 'none', position: 'fixed', bottom:0, left:0, right:0,
+      height: 56, background:'#fff', borderTop:'1px solid #ebedf0',
+      alignItems:'stretch', zIndex:200,
+      paddingBottom: 'env(safe-area-inset-bottom)'
     }
-  }, nav.map(n => /*#__PURE__*/React.createElement("button", {
-    key: n.id,
-    onClick: () => setPg(n.id),
-    style: S.navBtn(pg === n.id)
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 15,
-      width: 22,
-      textAlign: 'center'
-    }
-  }, n.ic), n.l))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: '8px 8px',
-      borderTop: '1px solid #f3f4f6'
-    }
-  }, /*#__PURE__*/React.createElement("button", {
+  },
+    nav.slice(0,5).map(n => /*#__PURE__*/React.createElement("button", {
+      key: n.id,
+      onClick: () => setPg(n.id),
+      style: {
+        flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+        gap:2, border:'none', background:'none',
+        color: pg === n.id ? '#4f46e5' : '#9ca3af',
+        fontSize:10, fontWeight: pg === n.id ? 600 : 400,
+        borderTop: pg === n.id ? '2px solid #4f46e5' : '2px solid transparent',
+        transition: 'color .15s'
+      }
+    },
+      /*#__PURE__*/React.createElement("span", { style: { fontSize:18, lineHeight:1 } }, n.ic),
+      n.l
+    )),
+    /* 第6项（备份）折叠进"更多" */
+    /*#__PURE__*/React.createElement("button", {
+      onClick: () => setPg('bak'),
+      style: {
+        flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+        gap:2, border:'none', background:'none',
+        color: pg === 'bak' ? '#4f46e5' : '#9ca3af',
+        fontSize:10, fontWeight: pg === 'bak' ? 600 : 400,
+        borderTop: pg === 'bak' ? '2px solid #4f46e5' : '2px solid transparent',
+      }
+    },
+      /*#__PURE__*/React.createElement("span", { style: { fontSize:18, lineHeight:1 } }, '💾'),
+      '备份'
+    )
+  ),
+
+  /* ===== 移动端 FAB 记一笔（桌面隐藏） ===== */
+  /*#__PURE__*/React.createElement("button", {
+    className: 'sl-fab',
     onClick: () => setModal(true),
     style: {
-      width: '100%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 5,
-      padding: '9px 0',
-      borderRadius: 8,
-      background: '#4f46e5',
-      color: '#fff',
-      fontSize: 13,
-      fontWeight: 500,
-      border: 'none'
+      display: 'none', position:'fixed', right:20,
+      bottom: 'calc(68px + env(safe-area-inset-bottom))',
+      width:52, height:52, borderRadius:'50%',
+      background:'#4f46e5', color:'#fff', fontSize:26, fontWeight:300,
+      border:'none', alignItems:'center', justifyContent:'center',
+      boxShadow:'0 4px 14px rgba(79,70,229,.45)', zIndex:300,
+      lineHeight:1
     }
-  }, "\uFF0B \u8BB0\u4E00\u7B14"))), /*#__PURE__*/React.createElement("main", {
-    style: {
-      flex: 1,
-      overflowY: 'auto'
-    }
-  }, pg === 'dash' && /*#__PURE__*/React.createElement(Dash, {
-    st: st,
-    go: setPg
-  }), pg === 'txs' && /*#__PURE__*/React.createElement(TxPage, {
-    st: st,
-    dp: dp
-  }), pg === 'imp' && /*#__PURE__*/React.createElement(ImpPage, {
-    st: st,
-    dp: dp
-  }), pg === 'rep' && /*#__PURE__*/React.createElement(RepPage, {
-    st: st
-  }), pg === 'acc' && /*#__PURE__*/React.createElement(AccPage, {
-    st: st,
-    dp: dp
-  }), pg === 'bak' && /*#__PURE__*/React.createElement(BackupPage, {
-    st: st,
-    dp: dp,
-    cloudStatus: cloudStatus,
-    cloudKey: cloudKey,
-    setCloudKeyState: setCloudKeyState
-  })), modal && /*#__PURE__*/React.createElement(AddModal, {
-    st: st,
-    dp: dp,
-    close: () => setModal(false)
-  }));
+  }, '+'),
+
+  modal && /*#__PURE__*/React.createElement(AddModal, { st:st, dp:dp, close: () => setModal(false) })
+  );
 }
 try {
   ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App, null));
