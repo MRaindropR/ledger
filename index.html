@@ -4774,12 +4774,14 @@ async function cloudPush(key, payload) {
       },
       body: JSON.stringify({ key, data: dataStr, updated_at: new Date().toISOString() })
     });
-    /* 200, 201, 204 are all success for Supabase upsert */
     if (res.status >= 200 && res.status < 300) return true;
     const errText = await res.text().catch(() => '');
-    console.warn('云端推送失败 status:', res.status, errText);
+    console.error('☁️ 云同步失败 HTTP ' + res.status + ':', errText);
     return false;
-  } catch (e) { console.warn('云端推送失败:', e); return false; }
+  } catch (e) {
+    console.error('☁️ 云同步网络错误:', e.message || e);
+    return false;
+  }
 }
 
 function scheduledCloudPush(st) {
