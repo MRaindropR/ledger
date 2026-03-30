@@ -29,7 +29,14 @@ textarea{resize:vertical}
   .sl-acclist-row{flex-direction:column!important;gap:12px!important}
   .sl-chart-grid{grid-template-columns:1fr!important}
   /* AccPage */
-  .sl-accpage-wrap{padding:12px 8px!important}
+  .sl-accpage-wrap{padding:16px 12px!important}
+  .sl-acc-col-sep{display:none!important}
+  .sl-acc-sides{flex-direction:column!important;gap:16px!important}
+  .sl-acc-addform-grid{grid-template-columns:1fr!important}
+  /* RepPage */
+  .sl-rep-wrap{padding:16px 12px!important}
+  .sl-rep-stat-grid{grid-template-columns:repeat(2,1fr)!important;gap:10px!important}
+  .sl-rep-chart-grid{grid-template-columns:1fr!important}
 }
 </style>
 </head>
@@ -2847,6 +2854,7 @@ function ImpPage({
       color: '#059669'
     }
   }, "\u2705 \u89E3\u6790\u5B8C\u6210"), /*#__PURE__*/React.createElement("div", {
+    className: "sl-rep-stat-grid",
     style: {
       display: 'grid',
       gridTemplateColumns: 'repeat(3,1fr)',
@@ -3529,7 +3537,7 @@ function RepPage({
     return ALL_CATS.filter(c => s.has(c.id));
   }, [st.txs]);
   return /*#__PURE__*/React.createElement("div", {
-    className: "fi",
+    className: "fi sl-rep-wrap",
     style: {
       padding: 24,
       maxWidth: 1050,
@@ -3675,6 +3683,7 @@ function RepPage({
       color: x.c
     }
   }, "\xA5", fmt(x.v))))), /*#__PURE__*/React.createElement("div", {
+    className: "sl-rep-chart-grid",
     style: {
       display: 'grid',
       gridTemplateColumns: '5fr 3fr',
@@ -3905,7 +3914,7 @@ function AccPage({ st, dp }) {
           }, disabled:!en, style: S.btn(!en?'#c7d2fe':'#4f46e5', !en) }, '\u4FDD\u5B58'))));
   };
 
-  return /*#__PURE__*/React.createElement("div", { className:"fi", style: { padding:24, maxWidth:900, margin:'0 auto' } },
+  return /*#__PURE__*/React.createElement("div", { className:"fi sl-accpage-wrap", style: { padding:24, maxWidth:900, margin:'0 auto' } },
     /*#__PURE__*/React.createElement("div", { style: { display:'flex', justifyContent:'space-between', marginBottom:20 } },
       /*#__PURE__*/React.createElement("h2", { style: { fontSize:22, fontWeight:700 } }, "\u6211\u7684\u8D26\u6237"),
       /*#__PURE__*/React.createElement("div", { style: { display:'flex', gap:8, alignItems:'center' } },
@@ -3918,14 +3927,14 @@ function AccPage({ st, dp }) {
         /*#__PURE__*/React.createElement("span", null, "\u8D44\u4EA7 \xA5", fmt(totA)),
         /*#__PURE__*/React.createElement("span", null, "\u8D1F\u503A \xA5", fmt(totL)))),
     detailAcc && /*#__PURE__*/React.createElement(DetailPanel, null),
-    /*#__PURE__*/React.createElement("div", { style: { display:'flex', gap:20, marginBottom:22 } },
+    /*#__PURE__*/React.createElement("div", { className: "sl-acc-sides", style: { display:'flex', gap:20, marginBottom:22 } },
       /*#__PURE__*/React.createElement("div", { style: { flex:1 } },
         /*#__PURE__*/React.createElement("div", { style: { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, padding:'0 4px' } },
           /*#__PURE__*/React.createElement("h3", { style: { fontSize:15, fontWeight:700, color:'#059669' } }, "\uD83D\uDCC8 \u8D44\u4EA7"),
           /*#__PURE__*/React.createElement("span", { className:"tn", style: { fontSize:15, fontWeight:700, color:'#059669' } }, "\xA5", fmt(totA))),
         assets.map((a,i) => /*#__PURE__*/React.createElement(AccCard, { key:a.id, a:a, idx:i, total:assets.length })),
         assets.length===0 && /*#__PURE__*/React.createElement("div", { style: { ...S.card, textAlign:'center', color:'#ccc', padding:30 } }, "\u6682\u65E0\u8D44\u4EA7\u8D26\u6237")),
-      /*#__PURE__*/React.createElement("div", { style: { width:1, background:'#ebedf0' } }),
+      /*#__PURE__*/React.createElement("div", { className: "sl-acc-col-sep", style: { width:1, background:'#ebedf0' } }),
       /*#__PURE__*/React.createElement("div", { style: { flex:1 } },
         /*#__PURE__*/React.createElement("div", { style: { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, padding:'0 4px' } },
           /*#__PURE__*/React.createElement("h3", { style: { fontSize:15, fontWeight:700, color:'#e11d48' } }, "\uD83D\uDCC9 \u8D1F\u503A"),
@@ -3934,7 +3943,7 @@ function AccPage({ st, dp }) {
         liabs.length===0 && /*#__PURE__*/React.createElement("div", { style: { ...S.card, textAlign:'center', color:'#ccc', padding:30 } }, "\u6682\u65E0\u8D1F\u503A\u8D26\u6237"))),
     show && /*#__PURE__*/React.createElement("div", { style: { ...S.card, padding:22 } },
       /*#__PURE__*/React.createElement("h3", { style: { fontWeight:600, marginBottom:12 } }, "\u6DFB\u52A0\u65B0\u8D26\u6237"),
-      /*#__PURE__*/React.createElement("div", { style: { display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:12 } },
+      /*#__PURE__*/React.createElement("div", { className: "sl-acc-addform-grid", style: { display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:12 } },
         /*#__PURE__*/React.createElement("div", null,
           /*#__PURE__*/React.createElement("label", { style: { fontSize:12, color:'#888', display:'block', marginBottom:3 } }, "\u540D\u79F0"),
           /*#__PURE__*/React.createElement("input", { value:f.n, onChange:e=>setF(x=>({...x,n:e.target.value})), placeholder:"\u5982\uFF1A\u62DB\u5546\u94F6\u884C", style:S.input })),
