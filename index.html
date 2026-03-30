@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>智能记账 SmartLedger V2.7</title>
+<title>智能记账 SmartLedger V2.8</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:#f5f6fa;color:#1f2937;font-size:14px}
@@ -4044,7 +4044,7 @@ function BackupPage({
       XLSX.utils.book_append_sheet(wb, ws2, '账单');
       const meta = [{
         键: '版本',
-        值: 'SmartLedger v2.7'
+        值: 'SmartLedger v2.8'
       }, {
         键: '导出时间',
         值: new Date().toLocaleString('zh-CN')
@@ -4930,7 +4930,7 @@ function App() {
       /*#__PURE__*/React.createElement("div", { style:{ padding:'16px 14px', borderBottom:'1px solid #f3f4f6' } },
         /*#__PURE__*/React.createElement("h1", { style:{ fontSize:17, fontWeight:700, color:'#4f46e5', display:'flex', alignItems:'center', gap:6 } },
           /*#__PURE__*/React.createElement("span", { style:{ fontSize:20 } }, "\uD83D\uDCD2"), "\u667A\u80FD\u8BB0\u8D26"),
-        /*#__PURE__*/React.createElement("p", { style:{ fontSize:10, color:'#bbb', marginTop:2 } }, "SmartLedger v2.7"),
+        /*#__PURE__*/React.createElement("p", { style:{ fontSize:10, color:'#bbb', marginTop:2 } }, "SmartLedger v2.8"),
         cloudKey && /*#__PURE__*/React.createElement("div", { style:{ marginTop:4, padding:'3px 8px', borderRadius:6, background: cloudStatus.syncing ? '#eff6ff' : cloudStatus.ok === true ? '#ecfdf5' : cloudStatus.ok === false ? '#fef2f2' : '#f9fafb', display:'flex', alignItems:'center', gap:4, fontSize:10 } },
           /*#__PURE__*/React.createElement("span", null, cloudStatus.syncing ? '\uD83D\uDD04' : cloudStatus.ok === true ? '\u2601\uFE0F' : cloudStatus.ok === false ? '\u26A0\uFE0F' : '\u2601\uFE0F'),
           /*#__PURE__*/React.createElement("span", { style:{ color: cloudStatus.syncing ? '#3b82f6' : cloudStatus.ok === true ? '#059669' : cloudStatus.ok === false ? '#dc2626' : '#888', flex:1 } },
