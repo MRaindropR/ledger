@@ -33,7 +33,6 @@ import {
   investmentProfit,
   money,
   parseBill,
-  reconcile,
   saveTransaction,
   totals,
   type Account,
@@ -47,6 +46,11 @@ import { CloudSettings } from "./CloudSettings";
 import { BudgetPanel } from "./Budget";
 import { AccountDetails } from "./AccountDetails";
 import { moveAccount } from "./core/accounts";
+import {
+  classifyImport,
+  parseCsvBill,
+  type ImportIssue,
+} from "./core/csv-import";
 
 const C = {
   background: "#f7f2ef",
@@ -234,6 +238,18 @@ export function LedgerScreen({ page }: { page: Page }) {
     [selection, setSelection] = useState<Record<number, boolean>>({});
   const [search, setSearch] = useState("");
   const [detailsId, setDetailsId] = useState<string | null>(null);
+  const [importIssues, setImportIssues] = useState<ImportIssue[]>([]);
+  const [previewPage, setPreviewPage] = useState(0);
+  const [issuePage, setIssuePage] = useState(0);
+  const [importSource, setImportSource] = useState("");
+  const [previewCurrency, setPreviewCurrency] = useState("");
+  const [initialMatches, setInitialMatches] = useState<
+    ReturnType<typeof classifyImport>
+  >([]);
+  const previewMatches = useMemo(
+    () => classifyImport(ledger, preview),
+    [ledger, preview],
+  );
   const filteredTransactions = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     return ledger.transactions.filter((t) =>
@@ -352,6 +368,56 @@ export function LedgerScreen({ page }: { page: Page }) {
       },
       { text: "取消", style: "cancel" },
     ]);
+  }
+  function importPreview(
+    rows: Transaction[],
+    issues: ImportIssue[] = [],
+    source = "账单文本",
+  ) {
+    setPreview(rows);
+    setImportIssues(issues);
+    setPreviewPage(0);
+    setIssuePage(0);
+    setImportSource(source);
+    setPreviewCurrency(
+      ledger.accounts.find((a) => a.id === rows[0]?.accountId)?.currency || "",
+    );
+    setInitialMatches(classifyImport(ledger, rows));
+    setSelection(
+      Object.fromEntries(
+        classifyImport(ledger, rows).map((match, i) => [i, match === "new"]),
+      ),
+    );
+  }
+  async function importCsv() {
+    try {
+      const selectedAccount = ledger.accounts.find(
+        (a) => a.id === importAccount && !a.hidden,
+      );
+      if (!selectedAccount) throw Error("先选择入账账户");
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["text/csv", "text/comma-separated-values", "text/plain"],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      if (asset.size && asset.size > 5 * 1024 * 1024)
+        throw Error("CSV 文件不能超过 5 MB，请拆分导入");
+      const file = new File(asset.uri);
+      if (file.size > 5 * 1024 * 1024)
+        throw Error("CSV 文件不能超过 5 MB，请拆分导入");
+      const parsed = parseCsvBill(
+        await file.text(),
+        selectedAccount.id,
+        Number(billYear),
+        selectedAccount.currency,
+      );
+      if (!parsed.transactions.length && !parsed.issues.length)
+        throw Error("文件中没有交易记录");
+      importPreview(parsed.transactions, parsed.issues, asset.name);
+    } catch (e) {
+      Alert.alert("CSV 导入失败", errorMessage(e));
+    }
   }
   async function backup() {
     try {
@@ -623,15 +689,38 @@ export function LedgerScreen({ page }: { page: Page }) {
                   .filter((a) => !a.hidden)
                   .map((a) => ({ id: a.id, label: a.name }))}
                 value={importAccount}
-                change={setImportAccount}
+                change={(id) => {
+                  setImportAccount(id);
+                  importPreview([]);
+                }}
               />
               <Input
                 label="账单年份（MM/DD 格式）"
                 value={billYear}
-                change={setBillYear}
+                change={(year) => {
+                  setBillYear(year);
+                  importPreview([]);
+                }}
                 number
               />
-              <Input label="账单文本" value={text} change={setText} multiline />
+              <Input
+                label="账单文本"
+                value={text}
+                change={(value) => {
+                  setText(value);
+                  importPreview([]);
+                }}
+                multiline
+              />
+              <Button
+                label="选择 CSV 文件"
+                quiet
+                onPress={() => void importCsv()}
+                disabled={busy}
+              />
+              <Text style={s.small}>
+                UTF-8 CSV · 支持收支列和收入/支出分列 · 最多 5 MB
+              </Text>
               <Button
                 label="解析并对账"
                 onPress={() => {
@@ -645,66 +734,150 @@ export function LedgerScreen({ page }: { page: Page }) {
                     );
                     if (!rows.length)
                       throw Error("未识别交易，请检查日期、说明和金额列");
-                    setPreview(rows);
-                    setSelection(
-                      Object.fromEntries(
-                        rows.map((t, i) => [i, reconcile(ledger, t) === "new"]),
-                      ),
-                    );
+                    importPreview(rows);
                   } catch (error: unknown) {
                     const e = { message: errorMessage(error) };
                     Alert.alert("无法解析", e.message);
                   }
                 }}
               />
-              {preview.map((t, i) => {
-                const match = reconcile(ledger, t);
-                return (
-                  <Pressable
-                    key={i}
-                    onPress={() =>
-                      setSelection({ ...selection, [i]: !selection[i] })
-                    }
-                    style={s.card}
-                  >
-                    <Text>{selection[i] ? "☑" : "☐"}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.name}>{t.merchant}</Text>
-                      <Text
-                        style={[
-                          s.small,
-                          { color: match === "new" ? C.green : C.red },
-                        ]}
-                      >
-                        {t.date} ·{" "}
-                        {match === "new"
-                          ? "新增"
-                          : match === "duplicate"
-                            ? "重复"
-                            : "日期接近，需核对"}
+              {importIssues.length > 0 && (
+                <View
+                  style={[
+                    s.card,
+                    { flexDirection: "column", alignItems: "stretch" },
+                  ]}
+                >
+                  <Text style={[s.name, { color: C.red }]}>
+                    未导入 {importIssues.length} 条记录
+                  </Text>
+                  {importIssues
+                    .slice(issuePage * 10, (issuePage + 1) * 10)
+                    .map((issue, i) => (
+                      <Text key={i} style={s.small}>
+                        第 {issue.line} 条 CSV 记录：{issue.reason}
                       </Text>
+                    ))}
+                  {importIssues.length > 10 && (
+                    <View style={s.row}>
+                      <Button
+                        label="上页问题"
+                        quiet
+                        disabled={issuePage === 0}
+                        onPress={() => setIssuePage(issuePage - 1)}
+                      />
+                      <Button
+                        label="下页问题"
+                        quiet
+                        disabled={(issuePage + 1) * 10 >= importIssues.length}
+                        onPress={() => setIssuePage(issuePage + 1)}
+                      />
                     </View>
-                    <Text>{money(t.cents)}</Text>
-                  </Pressable>
-                );
-              })}
+                  )}
+                </View>
+              )}
+              {preview.length > 0 && (
+                <Text style={s.small}>
+                  {importSource} · 识别 {preview.length} 笔 · 选中{" "}
+                  {Object.values(selection).filter(Boolean).length} 笔 · 第{" "}
+                  {previewPage + 1}/{Math.ceil(preview.length / 50)} 页
+                </Text>
+              )}
+              {preview
+                .slice(previewPage * 50, (previewPage + 1) * 50)
+                .map((t, offset) => {
+                  const i = previewPage * 50 + offset;
+                  const match = previewMatches[i];
+                  return (
+                    <Pressable
+                      key={i}
+                      onPress={() =>
+                        setSelection({ ...selection, [i]: !selection[i] })
+                      }
+                      style={s.card}
+                    >
+                      <Text>{selection[i] ? "☑" : "☐"}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.name}>{t.merchant}</Text>
+                        <Text
+                          style={[
+                            s.small,
+                            { color: match === "new" ? C.green : C.red },
+                          ]}
+                        >
+                          {t.date} ·{" "}
+                          {match === "new"
+                            ? "新增"
+                            : match === "duplicate"
+                              ? "重复"
+                              : "日期接近，需核对"}
+                        </Text>
+                      </View>
+                      <Text
+                        style={{ color: t.type === "income" ? C.green : C.red }}
+                      >
+                        {t.type === "income" ? "+" : "−"}
+                        {money(t.cents)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              {preview.length > 50 && (
+                <View style={s.row}>
+                  <Button
+                    label="上一页"
+                    quiet
+                    disabled={previewPage === 0}
+                    onPress={() => setPreviewPage(previewPage - 1)}
+                  />
+                  <Button
+                    label="下一页"
+                    quiet
+                    disabled={(previewPage + 1) * 50 >= preview.length}
+                    onPress={() => setPreviewPage(previewPage + 1)}
+                  />
+                </View>
+              )}
               {preview.length > 0 && (
                 <Button
                   label={`导入所选 ${Object.values(selection).filter(Boolean).length} 笔`}
-                  disabled={busy}
+                  disabled={busy || !Object.values(selection).some(Boolean)}
                   onPress={() => {
-                    void mutate((l) =>
-                      preview.reduce(
-                        (next, t, i) =>
-                          selection[i]
-                            ? saveTransaction(next, {
-                                ...t,
-                                id: Crypto.randomUUID(),
-                              })
-                            : next,
-                        l,
-                      ),
-                    )
+                    void mutate((l) => {
+                      if (
+                        preview.some(
+                          (t) =>
+                            l.accounts.find((a) => a.id === t.accountId)
+                              ?.currency !== previewCurrency,
+                        )
+                      )
+                        throw Error(
+                          "入账账户的币种或账户已变化，请重新解析后核对",
+                        );
+                      const latestMatches = classifyImport(l, preview);
+                      if (
+                        preview.some(
+                          (t, i) =>
+                            selection[i] &&
+                            initialMatches[i] === "new" &&
+                            latestMatches[i] !== "new",
+                        )
+                      )
+                        throw Error(
+                          "账本已变化，出现新增重复或疑似重复，请重新解析文本或选择文件后核对",
+                        );
+                      const additions = preview
+                        .filter((t, i) => selection[i])
+                        .map((t) => ({ ...t, id: Crypto.randomUUID() }));
+                      return {
+                        ...l,
+                        transactions: [...l.transactions, ...additions].sort(
+                          (a, b) =>
+                            b.date.localeCompare(a.date) ||
+                            a.id.localeCompare(b.id),
+                        ),
+                      };
+                    })
                       .then(() => {
                         setPreview([]);
                         setText("");
