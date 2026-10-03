@@ -28,11 +28,17 @@
     "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
+    "@babel/generator": "^7.29.8",
+    "@babel/parser": "^7.29.9",
+    "@babel/traverse": "^7.29.8",
+    "@babel/types": "^7.29.8",
     "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^26.6.4",
     "@types/react": "~19.2.2",
+    "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~57.0.2",
+    "fake-indexeddb": "^6.2.5",
     "sharp": "^0.35.5",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3"
@@ -43,7 +49,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/core/*.test.ts",
+    "build:desktop": "node scripts/build-desktop.cjs",
+    "test": "tsx --test src/core/*.test.ts src/desktop/*.test.ts",
     "test:database": "tsx --test scripts/sync-database.test.ts scripts/sync-roundtrip.test.ts",
     "export:ios": "expo export --platform ios --output-dir dist-ios",
     "lint": "expo lint"

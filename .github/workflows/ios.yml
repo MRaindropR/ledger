@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
   push:
     branches: [main, native-app]
-    paths: ['mobile/**', 'supabase/**', '.github/workflows/ios.yml']
+    paths: ['mobile/**', 'desktop/**', 'supabase/**', '.github/workflows/ios.yml']
   pull_request:
-    paths: ['mobile/**', 'supabase/**', '.github/workflows/ios.yml']
+    paths: ['mobile/**', 'desktop/**', 'supabase/**', '.github/workflows/ios.yml']
 permissions:
   contents: read
 concurrency:
@@ -29,6 +29,13 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run test:database
+      - run: npm run build:desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SmartLedger-desktop-${{ github.sha }}
+          path: desktop/index.html
+          retention-days: 14
+          if-no-files-found: error
       - run: npm run export:ios
   build-device:
     if: github.event_name != 'pull_request'

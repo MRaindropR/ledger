@@ -5,12 +5,7 @@ import { randomUUID } from "expo-crypto";
 import { AppState } from "react-native";
 import { chunkedStorage } from "./core/secure-chunks";
 import { cloudConfig, type CloudConfig } from "./core/cloud-config";
-import {
-  remoteEntity,
-  type ApplyResult,
-  type Change,
-  type RemotePort,
-} from "./core/sync-runner";
+export { remoteBook } from "./core/supabase-port";
 const options = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
 };
@@ -64,39 +59,4 @@ export async function verifiedOwner(client: SupabaseClient): Promise<string> {
   if (error) throw error;
   if (!data.user) throw Error("请重新登录");
   return data.user.id;
-}
-export function remoteBook(client: SupabaseClient, bookId: string): RemotePort {
-  return {
-    async apply(operations) {
-      const { data, error } = await client.rpc("ledger_apply", {
-        p_book: bookId,
-        p_operations: operations,
-      });
-      if (error) throw error;
-      if (!Array.isArray(data)) throw Error("云端上传响应无效");
-      return data as ApplyResult[];
-    },
-    async pull(cursor) {
-      const { data, error } = await client
-        .from("ledger_records")
-        .select("kind,id,value,deleted,version,operation_id,cursor")
-        .eq("book_id", bookId)
-        .gt("cursor", cursor)
-        .order("cursor", { ascending: true })
-        .limit(500);
-      if (error) throw error;
-      if (!Array.isArray(data)) throw Error("云端增量响应无效");
-      return data.map((row) => ({
-        cursor: Number(row.cursor),
-        entity: remoteEntity({
-          kind: row.kind,
-          id: row.id,
-          value: row.value,
-          deleted: row.deleted,
-          version: Number(row.version),
-          operationId: row.operation_id,
-        }),
-      })) as Change[];
-    },
-  };
 }
