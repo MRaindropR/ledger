@@ -46,6 +46,7 @@ import { CloudSettings } from "./CloudSettings";
 import { BudgetPanel } from "./Budget";
 import { AccountDetails } from "./AccountDetails";
 import { moveAccount } from "./core/accounts";
+import { applyMerchantRule, rememberMerchantRule } from "./core/merchant-rules";
 import {
   readExcel,
   workbookBackup,
@@ -233,6 +234,7 @@ export function LedgerScreen({ page }: { page: Page }) {
     );
   const [form, setForm] = useState<Transaction | null>(null),
     [amount, setAmount] = useState("");
+  const [rememberCategory, setRememberCategory] = useState(false);
   const [account, setAccount] = useState<Account | null>(null),
     [accountAmount, setAccountAmount] = useState(""),
     [cost, setCost] = useState(""),
@@ -298,6 +300,7 @@ export function LedgerScreen({ page }: { page: Page }) {
       note: "",
     };
     setForm(t);
+    setRememberCategory(false);
     setAmount(tx ? String(t.cents / 100) : "");
   };
   const openAccount = (a?: Account) => {
@@ -385,6 +388,7 @@ export function LedgerScreen({ page }: { page: Page }) {
     issues: ImportIssue[] = [],
     source = "账单文本",
   ) {
+    rows = rows.map((tx) => applyMerchantRule(ledger, tx));
     setPreview(rows);
     setImportIssues(issues);
     setPreviewPage(0);
@@ -923,6 +927,12 @@ export function LedgerScreen({ page }: { page: Page }) {
                       <Text>{selection[i] ? "☑" : "☐"}</Text>
                       <View style={{ flex: 1 }}>
                         <Text style={s.name}>{t.merchant}</Text>
+                        <Text style={s.small}>
+                          {(t.type === "income"
+                            ? incomeCategories
+                            : expenseCategories
+                          ).find((c) => c.id === t.category)?.n || t.category}
+                        </Text>
                         <Text
                           style={[
                             s.small,
@@ -1138,7 +1148,15 @@ export function LedgerScreen({ page }: { page: Page }) {
               { id: "transfer", label: "转账" },
             ]}
             value={form.type}
-            change={(type) => setForm({ ...form, type: type as TxType })}
+            change={(type) =>
+              setForm(
+                applyMerchantRule(ledger, {
+                  ...form,
+                  type: type as TxType,
+                  category: type === "income" ? "i01" : "e01",
+                }),
+              )
+            }
           />
           <Input label="金额" value={amount} change={setAmount} number />
           <Input
@@ -1169,7 +1187,9 @@ export function LedgerScreen({ page }: { page: Page }) {
           <Input
             label="说明 / 商户"
             value={form.merchant}
-            change={(merchant) => setForm({ ...form, merchant })}
+            change={(merchant) =>
+              setForm(applyMerchantRule(ledger, { ...form, merchant }))
+            }
           />
           {form.type !== "transfer" && (
             <>
@@ -1182,6 +1202,19 @@ export function LedgerScreen({ page }: { page: Page }) {
                 value={form.category}
                 change={(category) => setForm({ ...form, category })}
               />
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: rememberCategory }}
+                onPress={() => setRememberCategory(!rememberCategory)}
+                style={[s.row, { minHeight: 44 }]}
+              >
+                <Text style={s.label}>
+                  {rememberCategory ? "☑" : "☐"} 记住此商户的分类
+                </Text>
+              </Pressable>
+              <Text style={s.small}>
+                仅用于后续同商户记录，不改动历史账单。
+              </Text>
             </>
           )}
           <Input
@@ -1195,7 +1228,12 @@ export function LedgerScreen({ page }: { page: Page }) {
             onPress={() => {
               try {
                 const saved = { ...form, cents: cents(amount) };
-                void mutate((l) => saveTransaction(l, saved))
+                void mutate((l) => {
+                  const next = saveTransaction(l, saved);
+                  return rememberCategory
+                    ? rememberMerchantRule(next, saved)
+                    : next;
+                })
                   .then(() => setForm(null))
                   .catch((e) => Alert.alert("保存失败", e.message));
               } catch (error: unknown) {
