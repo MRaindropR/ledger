@@ -1,16 +1,28 @@
 -- New tables only. The legacy sync_data table is not read or modified.
-create table if not exists public.ledger_books (
+-- One-shot migration: never silently reuse or alter a pre-existing schema.
+begin;
+do $$
+begin
+ if to_regclass('public.ledger_books') is not null
+    or to_regclass('public.ledger_records') is not null
+    or to_regclass('public.ledger_receipts') is not null
+    or to_regprocedure('public.ledger_create(text)') is not null
+    or to_regprocedure('public.ledger_apply(uuid,jsonb)') is not null then
+  raise exception 'ledger_schema_exists: inspect existing schema before migration';
+ end if;
+end $$;
+create table public.ledger_books (
  id uuid primary key default gen_random_uuid(), owner_id uuid not null references auth.users(id),
  name text not null check(length(name) between 1 and 80), created_at timestamptz not null default now()
 );
-create table if not exists public.ledger_records (
+create table public.ledger_records (
  book_id uuid not null references public.ledger_books(id), kind text not null check(kind in ('account','transaction','settings')),
  id text not null check(length(id) between 1 and 128), value jsonb, deleted boolean not null default false,
  version bigint not null check(version>0), operation_id uuid not null,
  cursor bigint generated always as identity, updated_at timestamptz not null default now(),
  primary key(book_id,kind,id), unique(cursor)
 );
-create table if not exists public.ledger_receipts (
+create table public.ledger_receipts (
  book_id uuid not null references public.ledger_books(id), operation_id uuid not null,
  operation jsonb not null, response jsonb not null, primary key(book_id,operation_id)
 );
@@ -69,3 +81,4 @@ begin
 end $$;
 revoke all on function public.ledger_create(text), public.ledger_apply(uuid,jsonb) from public,anon;
 grant execute on function public.ledger_create(text), public.ledger_apply(uuid,jsonb) to authenticated;
+commit;

@@ -4,10 +4,11 @@
 
 ## Supabase 管理后台
 
-1. 打开项目 SQL Editor，执行 `supabase/migrations/001_native_sync.sql`。只执行一次。迁移新增表、行级权限和版本检查函数，不迁移真实账本内容。
+1. 打开项目 SQL Editor，先核对当前项目及同名对象，再执行 `supabase/migrations/001_native_sync.sql`。只执行一次；迁移在一个事务中新增表、行级权限和版本检查函数，不迁移真实账本内容。发现同名表 / 函数时主动报错停止，不能删除现有对象后强行重跑。执行失败时确认事务已回滚后检查原因。
 2. Authentication 中创建自己的用户。当前 App 只登录已有用户，不开放自动注册。
 3. 修改邮箱 Magic Link 模板，正文包含 `{{ .Token }}` 验证码。App 使用邮箱验证码登录，不处理魔法链接跳转。验证码模板参见 [Supabase 官方说明](https://supabase.com/docs/guides/auth/auth-email-passwordless)。
 4. 从项目 Connect / API Keys 复制项目 URL 和 `sb_publishable_` 开头的公开密钥。管理员 secret / service role 密钥绝不能填入 App、HTML 或 GitHub。
+5. 执行只读 `supabase/check_native_sync.sql` 留存权限验收结果：三表启用 RLS；匿名不能读表或调用写入函数；登录用户不能直接插入 / 修改 / 删除表；只能读取自己账本的数据，写入经过版本检查函数。
 
 这些配置尚未在用户的线上项目执行或验证；仓库中的数据库测试使用本地 PostgreSQL 引擎。
 

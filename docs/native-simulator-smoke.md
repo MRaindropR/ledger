@@ -28,3 +28,9 @@ Actions 的 `simulator-smoke-<commit>` 附件包含 `first.png` / `restart.png`�
 本检查通过时只证明对应提交的模拟器 Release 启动、原生 SQLite 升级/读取以及重新启动后读取。
 
 首轮 1376e19 验收失败：[运行记录](https://github.com/MRaindropR/ledger/actions/runs/37097731067)。截图回到模拟器主屏，应用 stderr 明确报告 `Cannot make a deep link into a standalone app with no custom scheme defined`；应用在 Expo Router 初始化时崩溃。已补显式 `smartledger` 协议，并检查生成的原生 URLTypes，修正后的启动和账本读取仍待新构建验收，不能宣称已经通过。
+
+## 修复后的实测结果
+
+2026-10-03，f31f563 的 [运行 37107924369](https://github.com/MRaindropR/ledger/actions/runs/37107924369) 三项作业全部成功。诊断附件 SHA-256 `630b3668800803a9c3f179c637dca360c0ef0fa0891367ec015b02775e2598d0` 下载校验通过；`result.txt`、首次 / 重启 OCR、两次数据库检查文本均已核验，并人工查看 `first.png`，确认正常账本页而非启动屏。五个合成金额与预期一致，原生 SQLite 已完成升级且原账本不变。
+
+这证明 f31f563 的启动崩溃已修复；不代表真机安装或在线同步已经完成。后续商户分类记忆提交 074b2d3 仍需对应构建验证。
