@@ -45,6 +45,8 @@ import { errorMessage } from "./error";
 import { AnnualReview } from "./AnnualReview";
 import { CloudSettings } from "./CloudSettings";
 import { BudgetPanel } from "./Budget";
+import { AccountDetails } from "./AccountDetails";
+import { moveAccount } from "./core/accounts";
 
 const C = {
   background: "#f7f2ef",
@@ -231,6 +233,7 @@ export function LedgerScreen({ page }: { page: Page }) {
     [preview, setPreview] = useState<Transaction[]>([]),
     [selection, setSelection] = useState<Record<number, boolean>>({});
   const [search, setSearch] = useState("");
+  const [detailsId, setDetailsId] = useState<string | null>(null);
   const filteredTransactions = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     return ledger.transactions.filter((t) =>
@@ -301,6 +304,7 @@ export function LedgerScreen({ page }: { page: Page }) {
   };
   function accountActions(a: Account) {
     Alert.alert(a.name, "账户操作", [
+      { text: "查看明细", onPress: () => setDetailsId(a.id) },
       { text: "编辑", onPress: () => openAccount(a) },
       {
         text: a.hidden ? "显示账户" : "隐藏账户",
@@ -316,13 +320,17 @@ export function LedgerScreen({ page }: { page: Page }) {
       {
         text: "上移",
         onPress: () => {
-          void mutate((l) => {
-            const accounts = [...l.accounts],
-              i = accounts.findIndex((x) => x.id === a.id);
-            if (i > 0)
-              [accounts[i - 1], accounts[i]] = [accounts[i], accounts[i - 1]];
-            return { ...l, accounts };
-          }).catch(() => {});
+          void mutate((l) => moveAccount(l, a.id, -1, showHidden)).catch(
+            () => {},
+          );
+        },
+      },
+      {
+        text: "下移",
+        onPress: () => {
+          void mutate((l) => moveAccount(l, a.id, 1, showHidden)).catch(
+            () => {},
+          );
         },
       },
       {
@@ -552,7 +560,9 @@ export function LedgerScreen({ page }: { page: Page }) {
                         <Icon name={a.icon} />
                         <Pressable
                           style={{ flex: 1 }}
-                          onPress={() => openAccount(a)}
+                          accessibilityRole="button"
+                          accessibilityLabel={a.name + "账户明细"}
+                          onPress={() => setDetailsId(a.id)}
                         >
                           <Text style={s.name}>{a.name}</Text>
                           <Text style={s.small}>
@@ -924,6 +934,13 @@ export function LedgerScreen({ page }: { page: Page }) {
             </View>
           )}
         </Sheet>
+      )}
+      {detailsId && (
+        <AccountDetails
+          ledger={ledger}
+          id={detailsId}
+          close={() => setDetailsId(null)}
+        />
       )}
       {account && (
         <Sheet title="账户设置" close={() => setAccount(null)}>
