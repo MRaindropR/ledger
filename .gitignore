@@ -1,4 +1,5 @@
 output/playwright/
 output/native-smoke-*/
+output/supabase-deploy/
 .playwright-cli/
 desktop/index.html
