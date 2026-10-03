@@ -28,6 +28,7 @@ export type Ledger = {
   transactions: Transaction[];
   budgets: Record<string, number>;
   merchantCategories: Record<string, string>;
+  budgetSettings?: { flexCapCents: number; flex: Record<string, boolean> };
 };
 export const emptyLedger = (): Ledger => ({
   schemaVersion: 1,
@@ -40,7 +41,12 @@ export function cents(value: string | number): number {
   if (typeof value === "number") {
     const scaled = value * 100;
     const rounded = Math.round(scaled);
-    if (!Number.isFinite(value) || !Number.isSafeInteger(rounded) || Math.abs(scaled-rounded)>0.00001) throw Error("金额必须为最多两位小数");
+    if (
+      !Number.isFinite(value) ||
+      !Number.isSafeInteger(rounded) ||
+      Math.abs(scaled - rounded) > 0.00001
+    )
+      throw Error("金额必须为最多两位小数");
     return rounded;
   }
   const text = String(value).replace(/[¥￥$,\s元]/g, "");
@@ -84,7 +90,7 @@ export function totals(ledger: Ledger) {
   );
   return {
     assets: visible
-      .filter((a) => a.kind === "asset")
+      .filter((a) => a.kind === "asset" || balance(ledger,a)>0)
       .reduce((s, a) => s + balance(ledger, a), 0),
     liabilities: visible
       .filter((a) => a.kind === "liability")
@@ -135,6 +141,7 @@ type LegacyAccount = {
   cost?: number | string | null;
   hidden?: boolean;
   currency?: string;
+  cur?: string;
 };
 type LegacyTransaction = {
   id: string;
@@ -150,10 +157,15 @@ type LegacyTransaction = {
 };
 type LegacyLedger = {
   schemaVersion?: number;
+  nativeBridgeVersion?: number;
   accs?: LegacyAccount[];
   txs?: LegacyTransaction[];
   merchantCatMap?: Record<string, string>;
-  budgets?: { cats?: Record<string, number | string> };
+  budgets?: {
+    cats?: Record<string, number | string>;
+    flexCap?: number | string;
+    flex?: Record<string, boolean>;
+  };
 };
 function record(x: unknown): LegacyLedger {
   if (!x || typeof x !== "object" || Array.isArray(x))
@@ -183,7 +195,9 @@ export function importLegacy(input: unknown): Ledger {
   }));
   ledger.accounts = raw.accs.map((a) => {
     const signed =
-      a.kind === "liability" ? -Math.abs(cents(a.bal)) : cents(a.bal);
+      a.kind === "liability" && raw.nativeBridgeVersion !== 1
+        ? -Math.abs(cents(a.bal))
+        : cents(a.bal);
     return {
       id: String(a.id),
       name: a.n,
@@ -202,31 +216,69 @@ export function importLegacy(input: unknown): Ledger {
           ? null
           : cents(a.cost),
       hidden: !!a.hidden,
-      currency: a.currency || "CNY",
+      currency: a.currency || a.cur || "CNY",
     };
   });
   ledger.merchantCategories = raw.merchantCatMap || {};
   for (const [key, value] of Object.entries(raw.budgets?.cats || {}))
     ledger.budgets[key] = cents(String(value));
+  if (raw.budgets?.flexCap !== undefined || raw.budgets?.flex)
+    ledger.budgetSettings = {
+      flexCapCents: cents(raw.budgets.flexCap ?? 0),
+      flex: raw.budgets.flex ?? {},
+    };
   validateLedger(ledger);
   return ledger;
 }
 export function validateLedger(l: Ledger) {
   if (
+    !l ||
+    typeof l !== "object" ||
     l.schemaVersion !== 1 ||
     !Array.isArray(l.accounts) ||
     !Array.isArray(l.transactions)
   )
     throw Error("账本版本不支持");
+  if (
+    !l.budgets ||
+    typeof l.budgets !== "object" ||
+    Array.isArray(l.budgets) ||
+    Object.values(l.budgets).some((n) => !Number.isSafeInteger(n) || n < 0) ||
+    !l.merchantCategories ||
+    typeof l.merchantCategories !== "object" ||
+    Array.isArray(l.merchantCategories) ||
+    Object.values(l.merchantCategories).some((c) => typeof c !== "string")
+  )
+    throw Error("预算或分类规则无效");
+  if (
+    l.budgetSettings &&
+    (!Number.isSafeInteger(l.budgetSettings.flexCapCents) ||
+      l.budgetSettings.flexCapCents < 0 ||
+      !l.budgetSettings.flex ||
+      typeof l.budgetSettings.flex !== "object" ||
+      Array.isArray(l.budgetSettings.flex) ||
+      Object.values(l.budgetSettings.flex).some((b) => typeof b !== "boolean"))
+  )
+    throw Error("弹性预算设置无效");
   const ids = new Set<string>();
   for (const a of l.accounts) {
     if (
+      !a ||
+      typeof a.id !== "string" ||
       !a.id ||
+      a.id.length > 128 ||
       ids.has(a.id) ||
-      !a.name ||
+      typeof a.name !== "string" ||
+      !a.name.trim() ||
+      typeof a.role !== "string" ||
+      typeof a.icon !== "string" ||
+      typeof a.hidden !== "boolean" ||
+      typeof a.currency !== "string" ||
+      !/^[A-Z]{3}$/.test(a.currency) ||
       !["asset", "liability"].includes(a.kind) ||
       !Number.isSafeInteger(a.openingCents) ||
-      (a.costCents !== null && !Number.isSafeInteger(a.costCents))
+      (a.costCents !== null &&
+        (!Number.isSafeInteger(a.costCents) || a.costCents < 0))
     )
       throw Error("账户数据无效");
     ids.add(a.id);
@@ -234,7 +286,14 @@ export function validateLedger(l: Ledger) {
   const txIds = new Set<string>();
   for (const t of l.transactions) {
     if (
+      !t ||
+      typeof t.id !== "string" ||
       !t.id ||
+      t.id.length > 128 ||
+      typeof t.merchant !== "string" ||
+      typeof t.category !== "string" ||
+      typeof t.note !== "string" ||
+      (t.postedDate !== undefined && !validDate(t.postedDate)) ||
       txIds.has(t.id) ||
       !["income", "expense", "transfer"].includes(t.type)
     )

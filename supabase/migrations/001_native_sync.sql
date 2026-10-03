@@ -52,6 +52,7 @@ begin
    results:=results||jsonb_build_array(receipt.response);continue;
   end if;
   select * into prior from ledger_records where book_id=p_book and kind=entity_kind and id=entity_id;
+  if not found and base_version<>0 then raise exception 'unknown_base_version'; end if;
   if coalesce(prior.version,0)<>base_version then
    result:=jsonb_build_object('status','conflict','remote',jsonb_build_object('kind',prior.kind,'id',prior.id,'value',prior.value,'deleted',prior.deleted,'version',prior.version,'operationId',prior.operation_id),'operationId',opid);
   else

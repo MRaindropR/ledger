@@ -1,8 +1,9 @@
 import * as SQLite from "expo-sqlite";
-import { emptyLedger, validateLedger, type Ledger } from "./core/ledger";
 import { randomUUID } from "expo-crypto";
-import { emptySync, type SyncState } from "./core/sync";
+import { emptyLedger, validateLedger } from "./core/ledger";
+import { emptySync } from "./core/sync";
 import { queueLedgerChanges } from "./core/ledger-sync";
+import { emptySnapshot, type Snapshot } from "./core/snapshot";
 let connection: Promise<SQLite.SQLiteDatabase> | undefined;
 async function db() {
   if (!connection)
@@ -14,51 +15,42 @@ async function db() {
       const columns = await d.getAllAsync<{ name: string }>(
         "PRAGMA table_info(ledger_state)",
       );
-      if (!columns.some((c) => c.name === "sync_json"))
-        await d.execAsync("ALTER TABLE ledger_state ADD COLUMN sync_json TEXT");
+      for (const name of ["sync_json", "binding_json"])
+        if (!columns.some((c) => c.name === name))
+          await d.execAsync(`ALTER TABLE ledger_state ADD COLUMN ${name} TEXT`);
       return d;
     })();
   return connection;
 }
-export async function loadLedger(): Promise<Ledger> {
+export async function loadSnapshot(): Promise<Snapshot> {
   const row = await (
     await db()
-  ).getFirstAsync<{ json: string }>("SELECT json FROM ledger_state WHERE id=1");
-  if (!row) return emptyLedger();
-  const result = JSON.parse(row.json);
-  validateLedger(result);
-  return result;
-}
-export async function persistLedger(ledger: Ledger) {
-  validateLedger(ledger);
-  const connection = await db();
-  const previous = await connection.getFirstAsync<{
+  ).getFirstAsync<{
     json: string;
     sync_json: string | null;
-  }>("SELECT json,sync_json FROM ledger_state WHERE id=1");
-  const before = previous ? JSON.parse(previous.json) : emptyLedger();
-  const sync: SyncState = previous?.sync_json
-    ? JSON.parse(previous.sync_json)
-    : emptySync();
-  // A legacy local snapshot is queued on its first save, including unchanged entities.
-  const queued = queueLedgerChanges(
-    sync,
-    previous?.sync_json ? before : emptyLedger(),
+    binding_json: string | null;
+  }>("SELECT json,sync_json,binding_json FROM ledger_state WHERE id=1");
+  if (!row) return emptySnapshot();
+  const ledger = JSON.parse(row.json);
+  validateLedger(ledger);
+  return {
     ledger,
-    randomUUID,
-  );
-  await connection.runAsync(
-    "INSERT INTO ledger_state(id,json,saved_at,sync_json) VALUES(1,?,?,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json,saved_at=excluded.saved_at,sync_json=excluded.sync_json",
-    JSON.stringify(ledger),
-    new Date().toISOString(),
-    JSON.stringify(queued),
-  );
+    sync: row.sync_json
+      ? JSON.parse(row.sync_json)
+      : queueLedgerChanges(emptySync(), emptyLedger(), ledger, randomUUID),
+    binding: row.binding_json ? JSON.parse(row.binding_json) : null,
+  };
 }
-export async function loadSyncState(): Promise<SyncState> {
-  const row = await (
+export async function persistSnapshot(snapshot: Snapshot) {
+  validateLedger(snapshot.ledger);
+  // One statement commits ledger, pending operations and book binding atomically.
+  await (
     await db()
-  ).getFirstAsync<{ sync_json: string | null }>(
-    "SELECT sync_json FROM ledger_state WHERE id=1",
+  ).runAsync(
+    "INSERT INTO ledger_state(id,json,saved_at,sync_json,binding_json) VALUES(1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json,saved_at=excluded.saved_at,sync_json=excluded.sync_json,binding_json=excluded.binding_json",
+    JSON.stringify(snapshot.ledger),
+    new Date().toISOString(),
+    JSON.stringify(snapshot.sync),
+    JSON.stringify(snapshot.binding),
   );
-  return row?.sync_json ? JSON.parse(row.sync_json) : emptySync();
 }

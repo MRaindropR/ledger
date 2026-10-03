@@ -1,6 +1,13 @@
-import type { Ledger } from "./ledger";
+import {
+  emptyLedger,
+  validateLedger,
+  type Account,
+  type Transaction,
+  type Ledger,
+} from "./ledger";
 import {
   queueChange,
+  materialize,
   type SyncState,
   type JsonValue,
   type EntityKind,
@@ -31,10 +38,46 @@ function entities(
     value: {
       budgets: ledger.budgets,
       merchantCategories: ledger.merchantCategories,
+      budgetSettings: JSON.parse(JSON.stringify(ledger.budgetSettings ?? null)),
       accountOrder: ledger.accounts.map((a) => a.id),
     },
   });
   return result;
+}
+
+export function ledgerFromSync(state: SyncState): Ledger {
+  const entries = materialize(state),
+    ledger = emptyLedger();
+  const settings = entries.find(
+    (e) => e.kind === "settings" && e.id === "main",
+  );
+  const value = settings?.value as
+    | {
+        budgets?: Record<string, number>;
+        merchantCategories?: Record<string, string>;
+        accountOrder?: string[];
+        budgetSettings?: Ledger["budgetSettings"];
+      }
+    | undefined;
+  ledger.budgets = value?.budgets ?? {};
+  ledger.merchantCategories = value?.merchantCategories ?? {};
+  if (value?.budgetSettings) ledger.budgetSettings = value.budgetSettings;
+  const order = new Map((value?.accountOrder ?? []).map((id, i) => [id, i]));
+  ledger.accounts = entries
+    .filter((e) => e.kind === "account")
+    .map((e) => e.value as Account)
+    .sort(
+      (a, b) =>
+        (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+          (order.get(b.id) ?? Number.MAX_SAFE_INTEGER) ||
+        a.id.localeCompare(b.id),
+    );
+  ledger.transactions = entries
+    .filter((e) => e.kind === "transaction")
+    .map((e) => e.value as Transaction)
+    .sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
+  validateLedger(ledger);
+  return ledger;
 }
 
 /** Keep every local edit queued until the server acknowledges its revision. */

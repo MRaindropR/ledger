@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useLedger } from "./LedgerProvider";
 import { annualReview } from "./core/review";
 import { money } from "./core/ledger";
+import categories from "./generated/EXP_CATS.json";
 export function AnnualReview() {
   const { ledger } = useLedger(),
     [year, setYear] = useState(new Date().getFullYear());
@@ -56,7 +57,10 @@ export function AnnualReview() {
         {report.categories.length ? (
           report.categories.map((c) => (
             <View key={c.name} style={s.category}>
-              <Text style={s.name}>{c.name}</Text>
+              <Text style={s.name}>
+                {categories.find((category) => category.id === c.name)?.n ??
+                  c.name}
+              </Text>
               <Text>¥{money(c.cents)}</Text>
             </View>
           ))

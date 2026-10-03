@@ -42,6 +42,7 @@ import {
 import { useLedger } from "./LedgerProvider";
 import { errorMessage } from "./error";
 import { AnnualReview } from "./AnnualReview";
+import { CloudSettings } from "./CloudSettings";
 
 const C = {
   background: "#f7f2ef",
@@ -394,7 +395,10 @@ export function LedgerScreen({ page }: { page: Page }) {
           },
         ]}
       >
-        {t.type === "expense" ? "−" : t.type === "income" ? "+" : ""}¥
+        {t.type === "expense" ? "−" : t.type === "income" ? "+" : ""}
+        {ledger.accounts.find((a) => a.id === t.accountId)?.currency === "CNY"
+          ? "¥"
+          : ledger.accounts.find((a) => a.id === t.accountId)?.currency + " "}
         {money(t.cents)}
       </Text>
     </Pressable>
@@ -676,11 +680,7 @@ export function LedgerScreen({ page }: { page: Page }) {
             <Text style={[s.small, { marginTop: 12 }]}>
               {lastBackup ? "最后打开备份分享：" + lastBackup : "尚未导出备份"}
             </Text>
-            <Text style={s.section}>两端同步</Text>
-            <Text style={s.small}>
-              同步服务尚未联调。当前数据仅保存在此设备；JSON
-              导入导出仅用于迁移，不能视为自动同步。
-            </Text>
+            <CloudSettings />
           </>
         )}
       </ScrollView>

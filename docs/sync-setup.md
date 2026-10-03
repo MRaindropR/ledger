@@ -1,0 +1,30 @@
+# 双端同步配置
+
+新同步使用 Supabase Auth + `ledger_books` / `ledger_records` / `ledger_receipts`。旧版 `sync_data` 不读取、不写入、不删除。迁移前先导出旧网页 JSON 备份。
+
+## Supabase 管理后台
+
+1. 打开项目 SQL Editor，执行 `supabase/migrations/001_native_sync.sql`。只执行一次。迁移新增表、行级权限和版本检查函数，不迁移真实账本内容。
+2. Authentication 中创建自己的用户。当前 App 只登录已有用户，不开放自动注册。
+3. 修改邮箱 Magic Link 模板，正文包含 `{{ .Token }}` 验证码。App 使用邮箱验证码登录，不处理魔法链接跳转。验证码模板参见 [Supabase 官方说明](https://supabase.com/docs/guides/auth/auth-email-passwordless)。
+4. 从项目 Connect / API Keys 复制项目 URL 和 `sb_publishable_` 开头的公开密钥。管理员 secret / service role 密钥绝不能填入 App、HTML 或 GitHub。
+
+这些配置尚未在用户的线上项目执行或验证；仓库中的数据库测试使用本地 PostgreSQL 引擎。
+
+## 手机 App
+
+设置 → 两端同步 → 填写项目地址和公开密钥 → 邮箱验证码登录。
+
+- 首次迁移：导入旧网页 JSON，创建新云端账本并连接。确认连接后自动上传、补传及前台定时拉取。
+- 第二台设备：同一邮箱登录，选择已有云端账本。若本机已有数据，先备份；相同 ID 的修改可能产生冲突。
+- 有冲突时，设置页保留本机和云端内容，明确选择版本后再上传。没有默默覆盖。
+- 退出登录保留本机账本和待上传队列。当前版本禁止把已经连接的本机账本直接切换给另一个账号或另一个云端账本。
+- 登录会话在 iOS Keychain / Android SecureStore 中分块保存，JSON 备份不含会话。
+
+## 当前限制
+
+电脑端新同步桥接尚未接入现有 HTML；旧网页自动同步仍使用旧表，因此当前不能声称手机和电脑已实现线上自动同步。旧表无版本校验，不应与新协议混用。
+
+迁移失败、登录失败、网络失败和冲突不等于已同步。App 本地“已保存”只表示 SQLite 写入成功；云端状态单独显示。
+
+IPA 为未签名真机归档。自签安装及设备上的登录、文件分享、键盘、后台恢复尚待实测。
