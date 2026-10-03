@@ -41,6 +41,7 @@ import {
 } from "./core/ledger";
 import { useLedger } from "./LedgerProvider";
 import { errorMessage } from "./error";
+import { AnnualReview } from "./AnnualReview";
 
 const C = {
   background: "#f7f2ef",
@@ -55,12 +56,13 @@ const C = {
   blue: "#d8edfc",
   peach: "#ffddc8",
 };
-type Page = "首页" | "账单" | "账户" | "导入" | "设置";
+type Page = "首页" | "账单" | "账户" | "导入" | "报表" | "设置";
 const tabIcons: Record<Page, string> = {
   首页: "home",
   账单: "receipt",
   账户: "wallet",
   导入: "import",
+  报表: "report",
   设置: "settings",
 };
 function Icon({ name, size = 26 }: { name: string; size?: number }) {
@@ -194,6 +196,7 @@ export function LedgerScreen({ page }: { page: Page }) {
           账单: "/transactions",
           账户: "/accounts",
           导入: "/import",
+          报表: "/reports",
           设置: "/settings",
         } as const
       )[p],
@@ -212,8 +215,10 @@ export function LedgerScreen({ page }: { page: Page }) {
   const [search, setSearch] = useState(""),
     [lastBackup, setLastBackup] = useState<string | null>(null);
   const summary = totals(ledger),
-    monthly = ledger.transactions.filter((t) =>
-      t.date.startsWith(dateKey().slice(0, 7)),
+    monthly = ledger.transactions.filter(
+      (t) =>
+        t.date.startsWith(dateKey().slice(0, 7)) &&
+        ledger.accounts.find((a) => a.id === t.accountId)?.currency === "CNY",
     ),
     income = monthly
       .filter((t) => t.type === "income")
@@ -254,7 +259,15 @@ export function LedgerScreen({ page }: { page: Page }) {
         currency: "CNY",
       },
     );
-    setAccountAmount(a ? String(Math.abs(balance(ledger, a)) / 100) : "");
+    setAccountAmount(
+      a
+        ? String(
+            (a.kind === "liability"
+              ? -balance(ledger, a)
+              : balance(ledger, a)) / 100,
+          )
+        : "",
+    );
     setCost(
       a?.costCents !== null && a?.costCents !== undefined
         ? String(a.costCents / 100)
@@ -513,7 +526,11 @@ export function LedgerScreen({ page }: { page: Page }) {
                           ]}
                         >
                           {a.currency === "CNY" ? "¥" : a.currency + " "}
-                          {money(Math.abs(balance(ledger, a)))}
+                          {money(
+                            a.kind === "liability"
+                              ? -balance(ledger, a)
+                              : balance(ledger, a),
+                          )}
                         </Text>
                         {a.role === "investment" && (
                           <Text style={[s.small, { fontSize: 10 }]}>
@@ -636,6 +653,7 @@ export function LedgerScreen({ page }: { page: Page }) {
             )}
           </>
         )}
+        {page === "报表" && <AnnualReview />}
         {page === "设置" && (
           <>
             <Text style={s.section}>本地账本</Text>
@@ -837,7 +855,9 @@ export function LedgerScreen({ page }: { page: Page }) {
           />
           <Input
             label={
-              account.kind === "liability" ? "当前待还金额（正数）" : "当前余额"
+              account.kind === "liability"
+                ? "当前待还金额（溢缴款填负数）"
+                : "当前余额"
             }
             value={accountAmount}
             change={setAccountAmount}
@@ -871,7 +891,7 @@ export function LedgerScreen({ page }: { page: Page }) {
               try {
                 if (!account.name.trim()) throw Error("填写账户名称");
                 const raw = cents(accountAmount),
-                  signed = account.kind === "liability" ? -Math.abs(raw) : raw;
+                  signed = account.kind === "liability" ? -raw : raw;
                 void mutate((l) => {
                   const updated = {
                     ...account,

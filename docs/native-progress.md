@@ -8,17 +8,20 @@
 
 ## 已验证
 
-- 7 项 core tests：金额精度、信用卡记账、编辑/删除余额、转账守恒、旧数据导入、投资成本、账单去重。
+- 17 项 core tests：金额、余额、旧数据导入、投资成本、账单去重、年度复盘、增量队列、冲突与删除标记及上传时继续编辑。
+- 本地 PostgreSQL 引擎运行迁移通过；验证账号隔离、禁止直接写表、版本检查、重复请求幂等及删除标记。未部署到线上 Supabase。
+- 本地账本修改与待上传队列写入同一条 SQLite 记录，保存失败时不显示成功。同步网络连接尚未接通。
 - TypeScript 类型检查通过。
 - iOS Metro/Hermes 生产包导出成功；这不等于 Xcode 真机编译成功。
+- 首轮 GitHub Actions macOS 真机归档、arm64 / bundle ID 检查及未签名 IPA 上传成功：[构建记录](https://github.com/MRaindropR/ledger/actions/runs/37089393987)。这一产物基于 d290b5c，后续新增模块须重新构建。
 
 ## 未完成，必须继续
 
-- GitHub Actions 的 Xcode 构建及 IPA 安装验证。
+- 新增模块的 GitHub Actions 构建，以及 IPA 自签后安装验证。
 - 原生界面真机交互、键盘和文件分享验证。
 - 手机/HTML 的账号认证、增量同步、离线补传、删除标记、冲突处理和双端联调。
 - 电脑 HTML 共用新账本格式与同步协议；当前桌面文件未改。
-- 原生 Excel/CSV 导入、分类学习、预算、图表、年度复盘、账户明细、完整排序和对账体验。
+- 原生 Excel/CSV 导入、分类学习、预算、完整图表、账户明细、完整排序和对账体验。年度复盘已增加收支、结余率、月度支出和分类汇总，尚待真机验证。
 - 大账本虚拟列表、币种/汇率汇总、导入覆盖的自动安全备份、撤销机制。
 - App 图标/启动页和发布配置完善，隐私政策、依赖与上线安全检查。
 
@@ -29,6 +32,7 @@ cd mobile
 npm ci
 npm run typecheck
 npm test
+npm run test:database
 npm run export:ios
 ```
 

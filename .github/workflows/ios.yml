@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
   push:
     branches: [main, native-app]
-    paths: ['mobile/**', '.github/workflows/ios.yml']
+    paths: ['mobile/**', 'supabase/**', '.github/workflows/ios.yml']
   pull_request:
-    paths: ['mobile/**', '.github/workflows/ios.yml']
+    paths: ['mobile/**', 'supabase/**', '.github/workflows/ios.yml']
 permissions:
   contents: read
 concurrency:
@@ -28,6 +28,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      - run: npm run test:database
       - run: npm run export:ios
   build-device:
     if: github.event_name != 'pull_request'
