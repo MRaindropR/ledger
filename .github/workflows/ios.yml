@@ -1,0 +1,73 @@
+name: iOS Native Build
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, native-app]
+    paths: ['mobile/**', '.github/workflows/ios.yml']
+  pull_request:
+    paths: ['mobile/**', '.github/workflows/ios.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run export:ios
+  build-device:
+    if: github.event_name != 'pull_request'
+    needs: check
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Record build tools
+        run: |
+          xcodebuild -version
+          node --version
+          pod --version
+      - run: npm ci
+      - name: Build unsigned device IPA
+        run: bash scripts/build-ios-unsigned.sh
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: SmartLedger-unsigned-${{ github.sha }}
+          path: |
+            mobile/build/SmartLedger-unsigned.ipa
+            mobile/build/SmartLedger-unsigned.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload diagnostic log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-log-${{ github.sha }}
+          path: mobile/build/xcodebuild.log
+          if-no-files-found: ignore
+          retention-days: 7
