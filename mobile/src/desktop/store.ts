@@ -1,4 +1,5 @@
 import { validateLedger } from "../core/ledger";
+import { validateLocal } from "../core/recovery";
 import type { Snapshot } from "../core/snapshot";
 import type { exportLegacy } from "../core/legacy-export";
 export type DesktopRecord = {
@@ -45,6 +46,7 @@ export class DesktopStore {
         try {
           next = fn(request.result ?? null);
           validateLedger(next.snapshot.ledger);
+          validateLocal(next.snapshot.local);
           store.put(next, "main");
         } catch (e) {
           error = e;

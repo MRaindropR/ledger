@@ -190,7 +190,22 @@ function Sheet({
 }
 
 export function LedgerScreen({ page }: { page: Page }) {
-  const { ledger, loaded, status, error, busy, current, mutate } = useLedger();
+  const {
+    ledger,
+    loaded,
+    status,
+    error,
+    busy,
+    mutate,
+    restore: restoreLedger,
+    createBackup,
+    markShareOpened,
+    undo,
+    canUndo,
+    recoveryPoints,
+    lastShareOpenedAt,
+    binding,
+  } = useLedger();
   const setPage = (p: Page) =>
     router.replace(
       (
@@ -215,8 +230,7 @@ export function LedgerScreen({ page }: { page: Page }) {
     [billYear, setBillYear] = useState(String(new Date().getFullYear())),
     [preview, setPreview] = useState<Transaction[]>([]),
     [selection, setSelection] = useState<Record<number, boolean>>({});
-  const [search, setSearch] = useState(""),
-    [lastBackup, setLastBackup] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const filteredTransactions = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     return ledger.transactions.filter((t) =>
@@ -333,19 +347,20 @@ export function LedgerScreen({ page }: { page: Page }) {
   }
   async function backup() {
     try {
+      const backupLedger = await createBackup();
       const file = new File(
         Paths.cache,
         `smartledger-${dateKey()}-${Date.now()}.json`,
       );
       file.create({ overwrite: true });
-      file.write(JSON.stringify(current.current, null, 2));
+      file.write(JSON.stringify(backupLedger, null, 2));
       if (!(await Sharing.isAvailableAsync()))
         throw Error("此设备无法打开分享面板");
       await Sharing.shareAsync(file.uri, {
         mimeType: "application/json",
         UTI: "public.json",
       });
-      setLastBackup(new Date().toLocaleString("zh-CN"));
+      await markShareOpened();
     } catch (error: unknown) {
       const e = { message: errorMessage(error) };
       Alert.alert("备份失败", e.message);
@@ -363,14 +378,14 @@ export function LedgerScreen({ page }: { page: Page }) {
       );
       Alert.alert(
         "导入账本",
-        `${imported.accounts.length} 个账户、${imported.transactions.length} 笔交易，将替换本机账本。建议先导出当前备份。`,
+        `${imported.accounts.length} 个账户、${imported.transactions.length} 笔交易，将替换本机账本。导入前自动保留本机恢复点。${binding ? "当前已连接云端，此次修改也会同步。" : ""}`,
         [
           { text: "取消", style: "cancel" },
           {
             text: "确认导入",
             style: "destructive",
             onPress: () => {
-              void mutate(() => imported).catch((e) =>
+              void restoreLedger(imported).catch((e) =>
                 Alert.alert("导入失败", e.message),
               );
             },
@@ -712,9 +727,66 @@ export function LedgerScreen({ page }: { page: Page }) {
                 onPress={() => void restore()}
               />
               <Text style={[s.small, { marginTop: 12 }]}>
-                {lastBackup
-                  ? "最后打开备份分享：" + lastBackup
-                  : "尚未导出备份"}
+                {lastShareOpenedAt
+                  ? "最后打开备份分享：" +
+                    new Date(lastShareOpenedAt).toLocaleString("zh-CN")
+                  : "尚未打开备份分享"}
+              </Text>
+              <View style={{ height: 12 }} />
+              <Button
+                label="撤销本机上一步操作"
+                quiet
+                disabled={busy || !canUndo}
+                onPress={() =>
+                  void undo().catch((e) => Alert.alert("无法撤销", e.message))
+                }
+              />
+              <Text style={s.section}>本机恢复点</Text>
+              {!recoveryPoints.length && (
+                <Text style={s.small}>尚无恢复点</Text>
+              )}
+              {recoveryPoints.map((point) => (
+                <View key={point.id} style={s.card}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.name}>
+                      {point.reason === "import"
+                        ? "导入前自动保护"
+                        : "手动备份"}
+                    </Text>
+                    <Text style={s.small}>
+                      {new Date(point.createdAt).toLocaleString("zh-CN")}
+                    </Text>
+                    <Text style={s.small}>
+                      {point.ledger.accounts.length} 个账户 ·{" "}
+                      {point.ledger.transactions.length} 笔交易
+                    </Text>
+                  </View>
+                  <Button
+                    label="恢复"
+                    quiet
+                    disabled={busy}
+                    onPress={() =>
+                      Alert.alert(
+                        "恢复这个账本？",
+                        `将替换本机账本，操作前再保留一个恢复点。${binding ? "修改会同步到已连接的云端账本。" : ""}`,
+                        [
+                          { text: "取消", style: "cancel" },
+                          {
+                            text: "确认恢复",
+                            style: "destructive",
+                            onPress: () =>
+                              void restoreLedger(point.ledger).catch((e) =>
+                                Alert.alert("恢复失败", e.message),
+                              ),
+                          },
+                        ],
+                      )
+                    }
+                  />
+                </View>
+              ))}
+              <Text style={s.small}>
+                仅保留最近 3 个恢复点，不包含登录信息。卸载 App 会丢失本机副本。
               </Text>
               <CloudSettings />
             </>

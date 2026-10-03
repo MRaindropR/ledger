@@ -10,8 +10,6 @@ import type { Ledger } from "./core/ledger";
 import type { SyncState } from "./core/sync";
 import {
   emptySnapshot,
-  SnapshotQueue,
-  changeLedger,
   bindSnapshot,
   changeSync,
   type CloudBinding,
@@ -19,6 +17,7 @@ import {
 } from "./core/snapshot";
 import { loadSnapshot, persistSnapshot } from "./storage";
 import { errorMessage } from "./error";
+import { LedgerSession } from "./core/ledger-session";
 type Store = {
   ledger: Ledger;
   sync: SyncState;
@@ -30,6 +29,13 @@ type Store = {
   current: React.MutableRefObject<Ledger>;
   snapshot: React.MutableRefObject<Snapshot>;
   mutate: (fn: (ledger: Ledger) => Ledger) => Promise<void>;
+  restore: (ledger: Ledger) => Promise<void>;
+  createBackup: () => Promise<Ledger>;
+  markShareOpened: () => Promise<void>;
+  undo: () => Promise<void>;
+  canUndo: boolean;
+  recoveryPoints: NonNullable<Snapshot["local"]>["recoveryPoints"];
+  lastShareOpenedAt: string | null;
   bindCloud: (binding: CloudBinding) => Promise<void>;
   mutateSync: (
     binding: CloudBinding,
@@ -42,16 +48,17 @@ export function LedgerProvider({ children }: { children: React.ReactNode }) {
     [loaded, setLoaded] = useState(false),
     [status, setStatus] = useState("正在加载"),
     [error, setError] = useState(""),
+    [canUndo, setCanUndo] = useState(false),
     [pending, setPending] = useState(0);
   const current = useRef(state.ledger),
     snapshot = useRef(state),
-    queue = useRef<SnapshotQueue | null>(null);
+    queue = useRef<LedgerSession | null>(null);
   useEffect(() => {
     let live = true;
     loadSnapshot()
       .then((s) => {
         if (!live) return;
-        queue.current = new SnapshotQueue(s, persistSnapshot);
+        queue.current = new LedgerSession(s, persistSnapshot);
         snapshot.current = s;
         current.current = s.ledger;
         setState(s);
@@ -68,16 +75,17 @@ export function LedgerProvider({ children }: { children: React.ReactNode }) {
       live = false;
     };
   }, []);
-  async function change(fn: (s: Snapshot) => Snapshot) {
+  async function change(run: (q: LedgerSession) => Promise<Snapshot>) {
     const q = queue.current;
     if (!q) throw Error("账本尚未加载");
     setPending((n) => n + 1);
     setStatus("正在保存");
     try {
-      const next = await q.change(fn);
+      const next = await run(q);
       snapshot.current = next;
       current.current = next.ledger;
       setState(next);
+      setCanUndo(q.canUndo);
       setError("");
       setStatus(
         "已保存 · " +
@@ -86,6 +94,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }) {
             minute: "2-digit",
           }),
       );
+      return next;
     } catch (e) {
       setError(errorMessage(e));
       setStatus("保存失败");
@@ -94,14 +103,40 @@ export function LedgerProvider({ children }: { children: React.ReactNode }) {
       setPending((n) => n - 1);
     }
   }
-  const mutate = (fn: (ledger: Ledger) => Ledger) =>
-    change((s) => changeLedger(s, fn, randomUUID));
+  const mutate = async (fn: (ledger: Ledger) => Ledger) => {
+    await change((q) => q.mutate(fn, randomUUID));
+  };
+  const restore = async (ledger: Ledger) => {
+    await change((q) => q.restore(ledger, randomUUID));
+  };
+  const createBackup = async () => {
+    const next = await change((q) => q.backup(randomUUID));
+    return next.local!.recoveryPoints[0].ledger;
+  };
+  const undo = async () => {
+    await change((q) => q.undo(randomUUID));
+  };
+  const markShareOpened = async () => {
+    await change((q) =>
+      q.change((s) => ({
+        ...s,
+        local: {
+          ...s.local,
+          recoveryPoints: s.local?.recoveryPoints ?? [],
+          lastShareOpenedAt: new Date().toISOString(),
+        },
+      })),
+    );
+  };
   const bindCloud = (binding: CloudBinding) =>
-    change((s) => bindSnapshot(s, binding, randomUUID));
+    change((q) => q.change((s) => bindSnapshot(s, binding, randomUUID))).then(
+      () => {},
+    );
   const mutateSync = (
     binding: CloudBinding,
     fn: (state: SyncState) => SyncState,
-  ) => change((s) => changeSync(s, binding, fn));
+  ) =>
+    change((q) => q.change((s) => changeSync(s, binding, fn))).then(() => {});
   return (
     <Context.Provider
       value={{
@@ -115,6 +150,13 @@ export function LedgerProvider({ children }: { children: React.ReactNode }) {
         current,
         snapshot,
         mutate,
+        restore,
+        createBackup,
+        markShareOpened,
+        undo,
+        canUndo,
+        recoveryPoints: state.local?.recoveryPoints ?? [],
+        lastShareOpenedAt: state.local?.lastShareOpenedAt ?? null,
         bindCloud,
         mutateSync,
       }}

@@ -16,6 +16,7 @@ import { exportLegacy } from "../core/legacy-export";
 import { exchange, mergeExchange } from "../core/sync-runner";
 import { resolveConflict, uploadable } from "../core/sync";
 import { undoLedger } from "../core/undo";
+import { protectedRestore } from "../core/recovery";
 import { remoteBook } from "../core/supabase-port";
 import { DesktopStore, type DesktopRecord } from "./store";
 import { errorMessage } from "../error";
@@ -204,7 +205,10 @@ export class DesktopController {
             ? (action.p as Legacy)
             : reducer(row.legacy, action),
         ledger = importLegacy(legacy),
-        snapshot = changeLedger(row.snapshot, () => ledger, newOperationId);
+        snapshot =
+          action.type === "RESTORE"
+            ? protectedRestore(row.snapshot, ledger, newOperationId)
+            : changeLedger(row.snapshot, () => ledger, newOperationId);
       entry = { before: row.snapshot.ledger, after: ledger };
       return { ...row, snapshot, legacy: exportLegacy(ledger, legacy) };
     });

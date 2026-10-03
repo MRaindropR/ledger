@@ -32,6 +32,16 @@ test("undo preserves a different transaction added by another device", () => {
     ["remote"],
   );
 });
+test("undo tolerates JSONB object key ordering after cloud acknowledgement", () => {
+  const before = { ...emptyLedger(), accounts: [account] },
+    after = { ...before, transactions: [tx] },
+    reordered = Object.fromEntries(Object.entries(tx).reverse()) as Transaction;
+  assert.deepEqual(
+    undoLedger({ ...after, transactions: [reordered] }, before, after)
+      .transactions,
+    [],
+  );
+});
 test("undo rejects overwriting a later edit or removing an account referenced later", () => {
   const before = { ...emptyLedger(), accounts: [account] },
     after = { ...before, transactions: [tx] };

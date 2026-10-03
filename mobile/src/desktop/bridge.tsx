@@ -9,6 +9,7 @@ import { importLegacy, type Ledger } from "../core/ledger";
 import { describeConflict } from "../core/conflict-description";
 import { errorMessage } from "../error";
 import type { Conflict } from "../core/sync";
+import type { Snapshot } from "../core/snapshot";
 const controller = new DesktopController();
 function useStateOfApp() {
   return useSyncExternalStore(controller.subscribe, controller.getState);
@@ -238,6 +239,21 @@ export function Panel() {
     },
     [act],
   );
+  const recover = useCallback(
+    (id: string) => {
+      const point = controller
+        .getState()
+        .row?.snapshot.local?.recoveryPoints.find((p) => p.id === id);
+      if (
+        point &&
+        confirm(
+          "恢复这个账本？将替换本机记录，并向已连接的云端同步。操作前会再保留一个恢复点。",
+        )
+      )
+        void act(() => controller.restore(point.ledger));
+    },
+    [act],
+  );
   const disabled = working || state.cloud.syncing,
     binding = state.row?.snapshot.binding;
   async function restore(file: File) {
@@ -456,7 +472,44 @@ export function Panel() {
           }}
         />
       </div>
+      <h4 style={{ marginTop: 20 }}>本机恢复点</h4>
+      {state.row?.snapshot.local?.recoveryPoints.map((point) => (
+        <RecoveryCard
+          key={point.id}
+          point={point}
+          disabled={disabled}
+          recover={recover}
+        />
+      ))}
+      <p style={{ color: "#6d777b", fontSize: 12, marginTop: 10 }}>
+        保留最近 3 个导入前副本；清除浏览器数据会丢失这些本机副本。
+      </p>
     </section>
+  );
+}
+function RecoveryCard({
+  point,
+  disabled,
+  recover,
+}: {
+  point: NonNullable<Snapshot["local"]>["recoveryPoints"][number];
+  disabled: boolean;
+  recover: (id: string) => void;
+}) {
+  return (
+    <div style={{ ...card, padding: 14, marginTop: 10 }}>
+      <strong>
+        {point.reason === "import" ? "导入前自动保护" : "手动备份"}
+      </strong>
+      <p style={{ fontSize: 12, color: "#6d777b", marginTop: 6 }}>
+        {new Date(point.createdAt).toLocaleString("zh-CN")} ·{" "}
+        {point.ledger.accounts.length} 个账户 ·{" "}
+        {point.ledger.transactions.length} 笔交易
+      </p>
+      <Button quiet disabled={disabled} onClick={() => recover(point.id)}>
+        恢复这个副本
+      </Button>
+    </div>
   );
 }
 type Workbook = { Sheets: Record<string, unknown>; SheetNames: string[] };

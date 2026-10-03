@@ -83,3 +83,55 @@ test("desktop controllers preserve concurrent edits, reload and delta undo", asy
     });
   }
 });
+test("desktop restore preserves a durable pre-import copy and keeps it out of exported ledger", async () => {
+  const factory = new IDBFactory(),
+    store = new DesktopStore(factory, "recovery"),
+    controller = new DesktopController(store);
+  try {
+    await controller.initialize({
+      schemaVersion: 1,
+      accounts: [],
+      transactions: [],
+      budgets: { e02: 1000 },
+      merchantCategories: {},
+    });
+    await controller.restore({
+      schemaVersion: 1,
+      accounts: [],
+      transactions: [],
+      budgets: { e02: 2000 },
+      merchantCategories: {},
+    });
+    const row = await store.read();
+    assert.equal(
+      row?.snapshot.local?.recoveryPoints[0].ledger.budgets.e02,
+      1000,
+    );
+    assert.equal(row?.snapshot.ledger.budgets.e02, 2000);
+    assert.equal(JSON.parse(controller.exportJSON()).local, undefined);
+    const reloaded = new DesktopController(
+      new DesktopStore(factory, "recovery"),
+    );
+    try {
+      await reloaded.initialize(null);
+      assert.equal(
+        reloaded.getState().row?.snapshot.local?.recoveryPoints[0].ledger
+          .budgets.e02,
+        1000,
+      );
+      await reloaded.restore(
+        reloaded.getState().row!.snapshot.local!.recoveryPoints[0].ledger,
+      );
+      assert.equal(reloaded.getState().row?.snapshot.ledger.budgets.e02, 1000);
+      assert.equal(
+        reloaded.getState().row?.snapshot.local?.recoveryPoints[0].ledger
+          .budgets.e02,
+        2000,
+      );
+    } finally {
+      await reloaded.close();
+    }
+  } finally {
+    await controller.close();
+  }
+});

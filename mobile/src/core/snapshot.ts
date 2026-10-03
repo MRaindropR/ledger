@@ -10,6 +10,15 @@ export type Snapshot = {
   ledger: Ledger;
   sync: SyncState;
   binding: CloudBinding | null;
+  local?: {
+    recoveryPoints: {
+      id: string;
+      createdAt: string;
+      reason: "import" | "manual";
+      ledger: Ledger;
+    }[];
+    lastShareOpenedAt?: string;
+  };
 };
 export const emptySnapshot = (): Snapshot => ({
   ledger: emptyLedger(),

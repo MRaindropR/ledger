@@ -4,8 +4,7 @@ import {
   type Account,
   type Transaction,
 } from "./ledger";
-const same = (a: unknown, b: unknown) =>
-  JSON.stringify(a) === JSON.stringify(b);
+import { sameValue as same } from "./value-equal";
 function reverseItems<T extends { id: string }>(
   current: T[],
   before: T[],
