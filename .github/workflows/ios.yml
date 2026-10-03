@@ -81,3 +81,36 @@ jobs:
           path: mobile/build/xcodebuild.log
           if-no-files-found: ignore
           retention-days: 7
+  smoke-simulator:
+    if: github.event_name != 'pull_request'
+    needs: check
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Launch release app and verify native SQLite on iOS simulator
+        run: bash scripts/smoke-ios-simulator.sh
+      - name: Upload native runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-smoke-${{ github.sha }}
+          path: |
+            mobile/build/simulator/*.log
+            mobile/build/simulator/*.txt
+            mobile/build/simulator/*.png
+            mobile/build/simulator/devices.json
+          if-no-files-found: warn
+          retention-days: 14
