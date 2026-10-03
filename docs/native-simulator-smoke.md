@@ -25,4 +25,6 @@ Actions 的 `simulator-smoke-<commit>` 附件包含 `first.png` / `restart.png`�
 - 邮箱登录、在线权限、手机/电脑同步和网络中断。
 - TestFlight / App Store 签名和审核。
 
-本检查只证明对应提交的模拟器 Release 启动、原生 SQLite 升级/读取以及重新启动后读取。首轮运行结果尚待查看，不代表以上检查已成功。
+本检查通过时只证明对应提交的模拟器 Release 启动、原生 SQLite 升级/读取以及重新启动后读取。
+
+首轮 1376e19 验收失败：[运行记录](https://github.com/MRaindropR/ledger/actions/runs/37097731067)。截图回到模拟器主屏，应用 stderr 明确报告 `Cannot make a deep link into a standalone app with no custom scheme defined`；应用在 Expo Router 初始化时崩溃。已补显式 `smartledger` 协议，并检查生成的原生 URLTypes，修正后的启动和账本读取仍待新构建验收，不能宣称已经通过。

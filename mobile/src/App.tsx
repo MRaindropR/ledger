@@ -47,6 +47,12 @@ import { BudgetPanel } from "./Budget";
 import { AccountDetails } from "./AccountDetails";
 import { moveAccount } from "./core/accounts";
 import {
+  readExcel,
+  workbookBackup,
+  billSheetNames,
+  parseExcelBill,
+} from "./core/excel-import";
+import {
   classifyImport,
   parseCsvBill,
   type ImportIssue,
@@ -243,6 +249,11 @@ export function LedgerScreen({ page }: { page: Page }) {
   const [issuePage, setIssuePage] = useState(0);
   const [importSource, setImportSource] = useState("");
   const [previewCurrency, setPreviewCurrency] = useState("");
+  const [excelBook, setExcelBook] = useState<ReturnType<
+    typeof readExcel
+  > | null>(null);
+  const [excelSheet, setExcelSheet] = useState("");
+  const [excelName, setExcelName] = useState("");
   const [initialMatches, setInitialMatches] = useState<
     ReturnType<typeof classifyImport>
   >([]);
@@ -415,8 +426,80 @@ export function LedgerScreen({ page }: { page: Page }) {
       if (!parsed.transactions.length && !parsed.issues.length)
         throw Error("文件中没有交易记录");
       importPreview(parsed.transactions, parsed.issues, asset.name);
+      setExcelBook(null);
     } catch (e) {
       Alert.alert("CSV 导入失败", errorMessage(e));
+    }
+  }
+  function previewExcel(
+    book: ReturnType<typeof readExcel>,
+    sheet: string,
+    name: string,
+  ) {
+    const a = ledger.accounts.find((a) => a.id === importAccount && !a.hidden);
+    if (!a) throw Error("先选择入账账户");
+    const parsed = parseExcelBill(
+      book,
+      sheet,
+      a.id,
+      Number(billYear),
+      a.currency,
+    );
+    if (!parsed.transactions.length && !parsed.issues.length)
+      throw Error("工作表中没有交易记录");
+    importPreview(parsed.transactions, parsed.issues, name + " · " + sheet);
+  }
+  async function importExcel() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "application/vnd.ms-excel",
+        ],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0],
+        file = new File(asset.uri);
+      if (
+        (asset.size && asset.size > 5 * 1024 * 1024) ||
+        file.size > 5 * 1024 * 1024
+      )
+        throw Error("Excel 文件不能超过 5 MB");
+      const book = readExcel(await file.bytes());
+      const backup = workbookBackup(book);
+      if (backup) {
+        Alert.alert(
+          "恢复完整 Excel 账本？",
+          `${backup.accounts.length} 个账户、${backup.transactions.length} 笔流水，将替换本机账本。恢复前自动保留本机副本。${binding ? "已连接云端，此次修改会同步。" : ""}`,
+          [
+            { text: "取消", style: "cancel" },
+            {
+              text: "确认恢复",
+              onPress: () => {
+                void restoreLedger(backup)
+                  .then(() => {
+                    setExcelBook(null);
+                    importPreview([]);
+                    setPage("账户");
+                  })
+                  .catch((e) => Alert.alert("恢复失败", errorMessage(e)));
+              },
+            },
+          ],
+        );
+        return;
+      }
+      const names = billSheetNames(book);
+      if (!names.length) throw Error("文件没有可见账单工作表");
+      setExcelBook(book);
+      setExcelName(asset.name);
+      setExcelSheet(names[0]);
+      importPreview([]);
+      if (names.length === 1 && importAccount)
+        previewExcel(book, names[0], asset.name);
+    } catch (e) {
+      Alert.alert("Excel 导入失败", errorMessage(e));
     }
   }
   async function backup() {
@@ -722,6 +805,47 @@ export function LedgerScreen({ page }: { page: Page }) {
                 UTF-8 CSV · 支持收支列和收入/支出分列 · 最多 5 MB
               </Text>
               <Button
+                label="选择 Excel 文件"
+                quiet
+                onPress={() => void importExcel()}
+                disabled={busy}
+              />
+              {excelBook && (
+                <View
+                  style={[
+                    s.card,
+                    { flexDirection: "column", alignItems: "stretch" },
+                  ]}
+                >
+                  <Text style={s.name}>{excelName}</Text>
+                  <Choices
+                    values={billSheetNames(excelBook).map((name) => ({
+                      id: name,
+                      label: name,
+                    }))}
+                    value={excelSheet}
+                    change={(name) => {
+                      setExcelSheet(name);
+                      importPreview([]);
+                    }}
+                  />
+                  <Button
+                    label="解析 Excel 工作表"
+                    disabled={busy}
+                    onPress={() => {
+                      try {
+                        previewExcel(excelBook, excelSheet, excelName);
+                      } catch (e) {
+                        Alert.alert("无法解析", errorMessage(e));
+                      }
+                    }}
+                  />
+                  <Text style={s.small}>
+                    账单逐笔预览；完整账本备份须另行确认替换。
+                  </Text>
+                </View>
+              )}
+              <Button
                 label="解析并对账"
                 onPress={() => {
                   try {
@@ -755,7 +879,7 @@ export function LedgerScreen({ page }: { page: Page }) {
                     .slice(issuePage * 10, (issuePage + 1) * 10)
                     .map((issue, i) => (
                       <Text key={i} style={s.small}>
-                        第 {issue.line} 条 CSV 记录：{issue.reason}
+                        第 {issue.line} 条文件记录：{issue.reason}
                       </Text>
                     ))}
                   {importIssues.length > 10 && (
@@ -880,6 +1004,7 @@ export function LedgerScreen({ page }: { page: Page }) {
                     })
                       .then(() => {
                         setPreview([]);
+                        setExcelBook(null);
                         setText("");
                         setPage("账单");
                       })

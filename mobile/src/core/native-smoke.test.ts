@@ -1,8 +1,17 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
 import { validateLedger, totals, type Ledger } from "./ledger";
 const require = createRequire(import.meta.url);
+test("standalone Expo Router build declares an explicit native URL scheme", () => {
+  const config = JSON.parse(
+    readFileSync(new URL("../../app.json", import.meta.url), "utf8"),
+  );
+  assert.equal(config.expo.scheme, "smartledger");
+  assert.equal(config.expo.ios.bundleIdentifier, "com.mraindropr.smartledger");
+  assert.ok(config.expo.plugins.includes("expo-router"));
+});
 test("native simulator fixture validates and matches all screenshot financial assertions", () => {
   const { ledger } = require("../../scripts/simulator-fixture.cjs") as {
     ledger: Ledger;

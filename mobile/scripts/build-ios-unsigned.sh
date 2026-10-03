@@ -13,6 +13,7 @@ app='build/SmartLedger.xcarchive/Products/Applications/SmartLedger.app'
 test -d "$app"
 lipo -archs "$app/SmartLedger" | grep -q arm64
 test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")" = 'com.mraindropr.smartledger'
+/usr/libexec/PlistBuddy -c 'Print CFBundleURLTypes' "$app/Info.plist" | grep -Eq '^[[:space:]]*smartledger[[:space:]]*$'
 mkdir -p build/Payload
 cp -R "$app" build/Payload/
 (cd build && zip -qry SmartLedger-unsigned.ipa Payload)

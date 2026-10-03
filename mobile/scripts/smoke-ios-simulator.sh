@@ -22,6 +22,7 @@ app='build/simulator/DerivedData/Build/Products/Release-iphonesimulator/SmartLed
 test -d "$app"
 bundle='com.mraindropr.smartledger'
 test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")" = "$bundle"
+/usr/libexec/PlistBuddy -c 'Print CFBundleURLTypes' "$app/Info.plist" | grep -Eq '^[[:space:]]*smartledger[[:space:]]*$'
 xcrun simctl install "$device" "$app"
 container=$(xcrun simctl get_app_container "$device" "$bundle" data)
 # This is the installed CI app's own sandbox, never a developer/user data directory.

@@ -2,6 +2,7 @@
   "expo": {
     "name": "SmartLedger",
     "slug": "smartledger",
+    "scheme": "smartledger",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -31,7 +32,14 @@
       "expo-secure-store",
       "expo-sharing",
       "expo-router",
-      "expo-splash-screen"
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icon.png",
+          "imageWidth": 96,
+          "backgroundColor": "#f7f2ef"
+        }
+      ]
     ]
   }
 }

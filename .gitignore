@@ -1,3 +1,4 @@
 output/playwright/
+output/native-smoke-*/
 .playwright-cli/
 desktop/index.html

@@ -145,6 +145,18 @@ export function parseCsvBill(
   if (!Number.isInteger(year) || year < 1900 || year > 9999)
     throw Error("输入有效四位年份");
   const rows = csvRows(text);
+  return parseBillRows(rows, accountId, year, currency);
+}
+export function parseBillRows(
+  rows: string[][],
+  accountId: string,
+  year: number,
+  currency: string,
+): BillImport {
+  if (!accountId) throw Error("选择入账账户");
+  if (!Number.isInteger(year) || year < 1900 || year > 9999)
+    throw Error("输入有效四位年份");
+  if (rows.length > 20001) throw Error("单次最多导入 20,000 行，请拆分文件");
   const headerIndex = rows.findIndex(
     (row) =>
       column(row, aliases.date) >= 0 &&
