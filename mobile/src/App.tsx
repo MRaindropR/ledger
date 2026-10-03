@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   ActivityIndicator,
+  FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -43,6 +44,7 @@ import { useLedger } from "./LedgerProvider";
 import { errorMessage } from "./error";
 import { AnnualReview } from "./AnnualReview";
 import { CloudSettings } from "./CloudSettings";
+import { BudgetPanel } from "./Budget";
 
 const C = {
   background: "#f7f2ef",
@@ -215,6 +217,14 @@ export function LedgerScreen({ page }: { page: Page }) {
     [selection, setSelection] = useState<Record<number, boolean>>({});
   const [search, setSearch] = useState(""),
     [lastBackup, setLastBackup] = useState<string | null>(null);
+  const filteredTransactions = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return ledger.transactions.filter((t) =>
+      (t.merchant + " " + t.note + " " + t.date)
+        .toLocaleLowerCase()
+        .includes(query),
+    );
+  }, [ledger.transactions, search]);
   const summary = totals(ledger),
     monthly = ledger.transactions.filter(
       (t) =>
@@ -428,262 +438,289 @@ export function LedgerScreen({ page }: { page: Page }) {
         </Text>
       </View>
       {error ? <Text style={s.error}>{error}</Text> : null}
-      <ScrollView
-        style={{ flex: 1 }}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ padding: 18, paddingBottom: 30 }}
-      >
-        {page === "首页" && (
-          <>
-            <Text style={s.small}>{dateKey()}</Text>
-            <View
-              style={[
-                s.metric,
-                { backgroundColor: C.lime, marginVertical: 14 },
-              ]}
-            >
-              <Text style={s.small}>净资产 · 人民币账户</Text>
-              <Text style={s.large}>¥{money(summary.net)}</Text>
-              <Text style={s.small}>
-                资产 ¥{money(summary.assets)}　负债 ¥
-                {money(summary.liabilities)}
-              </Text>
-            </View>
-            <View style={s.row}>
-              <View style={[s.metric, { flex: 1, backgroundColor: C.blue }]}>
-                <Text style={s.small}>本月收入</Text>
-                <Text style={s.amount}>¥{money(income)}</Text>
-              </View>
-              <View style={[s.metric, { flex: 1, backgroundColor: C.peach }]}>
-                <Text style={s.small}>本月支出</Text>
-                <Text style={s.amount}>¥{money(expense)}</Text>
-              </View>
-            </View>
-            <View style={{ marginVertical: 16 }}>
+      {page === "账单" ? (
+        <FlatList
+          data={filteredTransactions}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => txRow(item)}
+          extraData={ledger.accounts}
+          initialNumToRender={15}
+          windowSize={9}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={{ padding: 18, paddingBottom: 30 }}
+          ListHeaderComponent={
+            <>
+              <Input label="搜索交易" value={search} change={setSearch} />
               <Button label="＋ 记一笔" onPress={() => openTransaction()} />
-            </View>
-            <Text style={s.section}>最近交易</Text>
-            {ledger.transactions.slice(0, 10).map(txRow)}
-            {!ledger.transactions.length && (
-              <Text style={s.small}>
-                尚无交易。可导入电脑端 JSON 备份，或添加账户后开始记账。
-              </Text>
-            )}
-          </>
-        )}
-        {page === "账单" && (
-          <>
-            <Input label="搜索交易" value={search} change={setSearch} />
-            <Button label="＋ 记一笔" onPress={() => openTransaction()} />
-            <View style={{ height: 12 }} />
-            {ledger.transactions
-              .filter((t) => (t.merchant + t.note + t.date).includes(search))
-              .map(txRow)}
-          </>
-        )}
-        {page === "账户" && (
-          <>
-            <View style={s.row}>
-              <Button label="＋ 添加账户" onPress={() => openAccount()} />
-              <Button
-                label={showHidden ? "隐藏已停用" : "显示已停用"}
-                quiet
-                onPress={() => setShowHidden(!showHidden)}
-              />
-            </View>
-            {(["asset", "liability"] as const).map((kind) => (
-              <View key={kind}>
-                <Text
-                  style={[
-                    s.section,
-                    { color: kind === "asset" ? C.green : C.red },
-                  ]}
-                >
-                  {kind === "asset" ? "资产" : "负债"}
-                </Text>
-                {ledger.accounts
-                  .filter((a) => a.kind === kind && (showHidden || !a.hidden))
-                  .map((a) => (
-                    <View
-                      key={a.id}
-                      style={[s.card, a.hidden && { opacity: 0.5 }]}
-                    >
-                      <Icon name={a.icon} />
-                      <Pressable
-                        style={{ flex: 1 }}
-                        onPress={() => openAccount(a)}
-                      >
-                        <Text style={s.name}>{a.name}</Text>
-                        <Text style={s.small}>
-                          {a.role === "investment"
-                            ? "投资账户"
-                            : a.kind === "liability"
-                              ? "信用 / 借款"
-                              : a.currency + " · 现金 / 储蓄"}
-                        </Text>
-                      </Pressable>
-                      <View style={{ alignItems: "flex-end", maxWidth: "46%" }}>
-                        <Text
-                          style={[
-                            s.amount,
-                            { color: a.kind === "liability" ? C.red : C.ink },
-                          ]}
-                        >
-                          {a.currency === "CNY" ? "¥" : a.currency + " "}
-                          {money(
-                            a.kind === "liability"
-                              ? -balance(ledger, a)
-                              : balance(ledger, a),
-                          )}
-                        </Text>
-                        {a.role === "investment" && (
-                          <Text style={[s.small, { fontSize: 10 }]}>
-                            {investmentProfit(ledger, a) === null
-                              ? "待录入成本后计算收益"
-                              : "收益 " + money(investmentProfit(ledger, a)!)}
-                          </Text>
-                        )}
-                      </View>
-                      <Pressable
-                        accessibilityLabel={a.name + "账户操作"}
-                        style={s.more}
-                        onPress={() => accountActions(a)}
-                      >
-                        <Text style={{ fontSize: 20, color: C.muted }}>⋯</Text>
-                      </Pressable>
-                    </View>
-                  ))}
-              </View>
-            ))}
-          </>
-        )}
-        {page === "导入" && (
-          <>
+              <View style={{ height: 12 }} />
+            </>
+          }
+          ListEmptyComponent={
             <Text style={s.small}>
-              正数为支出，负数为退款收入；疑似重复需人工核对。
+              {search.trim() ? "没有符合条件的交易" : "尚无交易"}
             </Text>
-            <Text style={s.label}>入账账户</Text>
-            <Choices
-              values={ledger.accounts
-                .filter((a) => !a.hidden)
-                .map((a) => ({ id: a.id, label: a.name }))}
-              value={importAccount}
-              change={setImportAccount}
-            />
-            <Input
-              label="账单年份（MM/DD 格式）"
-              value={billYear}
-              change={setBillYear}
-              number
-            />
-            <Input label="账单文本" value={text} change={setText} multiline />
-            <Button
-              label="解析并对账"
-              onPress={() => {
-                try {
-                  if (!importAccount) throw Error("选择入账账户");
-                  if (!/^\d{4}$/.test(billYear)) throw Error("输入四位年份");
-                  const rows = parseBill(text, importAccount, Number(billYear));
-                  if (!rows.length)
-                    throw Error("未识别交易，请检查日期、说明和金额列");
-                  setPreview(rows);
-                  setSelection(
-                    Object.fromEntries(
-                      rows.map((t, i) => [i, reconcile(ledger, t) === "new"]),
-                    ),
-                  );
-                } catch (error: unknown) {
-                  const e = { message: errorMessage(error) };
-                  Alert.alert("无法解析", e.message);
-                }
-              }}
-            />
-            {preview.map((t, i) => {
-              const match = reconcile(ledger, t);
-              return (
-                <Pressable
-                  key={i}
-                  onPress={() =>
-                    setSelection({ ...selection, [i]: !selection[i] })
-                  }
-                  style={s.card}
-                >
-                  <Text>{selection[i] ? "☑" : "☐"}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.name}>{t.merchant}</Text>
-                    <Text
-                      style={[
-                        s.small,
-                        { color: match === "new" ? C.green : C.red },
-                      ]}
-                    >
-                      {t.date} ·{" "}
-                      {match === "new"
-                        ? "新增"
-                        : match === "duplicate"
-                          ? "重复"
-                          : "日期接近，需核对"}
-                    </Text>
-                  </View>
-                  <Text>{money(t.cents)}</Text>
-                </Pressable>
-              );
-            })}
-            {preview.length > 0 && (
+          }
+        />
+      ) : (
+        <ScrollView
+          style={{ flex: 1 }}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ padding: 18, paddingBottom: 30 }}
+        >
+          {page === "首页" && (
+            <>
+              <Text style={s.small}>{dateKey()}</Text>
+              <View
+                style={[
+                  s.metric,
+                  { backgroundColor: C.lime, marginVertical: 14 },
+                ]}
+              >
+                <Text style={s.small}>净资产 · 人民币账户</Text>
+                <Text style={s.large}>¥{money(summary.net)}</Text>
+                <Text style={s.small}>
+                  资产 ¥{money(summary.assets)}　负债 ¥
+                  {money(summary.liabilities)}
+                </Text>
+              </View>
+              <View style={s.row}>
+                <View style={[s.metric, { flex: 1, backgroundColor: C.blue }]}>
+                  <Text style={s.small}>本月收入</Text>
+                  <Text style={s.amount}>¥{money(income)}</Text>
+                </View>
+                <View style={[s.metric, { flex: 1, backgroundColor: C.peach }]}>
+                  <Text style={s.small}>本月支出</Text>
+                  <Text style={s.amount}>¥{money(expense)}</Text>
+                </View>
+              </View>
+              <View style={{ marginVertical: 16 }}>
+                <Button label="＋ 记一笔" onPress={() => openTransaction()} />
+              </View>
+              <BudgetPanel />
+              <Text style={s.section}>最近交易</Text>
+              {ledger.transactions.slice(0, 10).map(txRow)}
+              {!ledger.transactions.length && (
+                <Text style={s.small}>
+                  尚无交易。可导入电脑端 JSON 备份，或添加账户后开始记账。
+                </Text>
+              )}
+            </>
+          )}
+          {page === "账户" && (
+            <>
+              <View style={s.row}>
+                <Button label="＋ 添加账户" onPress={() => openAccount()} />
+                <Button
+                  label={showHidden ? "隐藏已停用" : "显示已停用"}
+                  quiet
+                  onPress={() => setShowHidden(!showHidden)}
+                />
+              </View>
+              {(["asset", "liability"] as const).map((kind) => (
+                <View key={kind}>
+                  <Text
+                    style={[
+                      s.section,
+                      { color: kind === "asset" ? C.green : C.red },
+                    ]}
+                  >
+                    {kind === "asset" ? "资产" : "负债"}
+                  </Text>
+                  {ledger.accounts
+                    .filter((a) => a.kind === kind && (showHidden || !a.hidden))
+                    .map((a) => (
+                      <View
+                        key={a.id}
+                        style={[s.card, a.hidden && { opacity: 0.5 }]}
+                      >
+                        <Icon name={a.icon} />
+                        <Pressable
+                          style={{ flex: 1 }}
+                          onPress={() => openAccount(a)}
+                        >
+                          <Text style={s.name}>{a.name}</Text>
+                          <Text style={s.small}>
+                            {a.role === "investment"
+                              ? "投资账户"
+                              : a.kind === "liability"
+                                ? "信用 / 借款"
+                                : a.currency + " · 现金 / 储蓄"}
+                          </Text>
+                        </Pressable>
+                        <View
+                          style={{ alignItems: "flex-end", maxWidth: "46%" }}
+                        >
+                          <Text
+                            style={[
+                              s.amount,
+                              { color: a.kind === "liability" ? C.red : C.ink },
+                            ]}
+                          >
+                            {a.currency === "CNY" ? "¥" : a.currency + " "}
+                            {money(
+                              a.kind === "liability"
+                                ? -balance(ledger, a)
+                                : balance(ledger, a),
+                            )}
+                          </Text>
+                          {a.role === "investment" && (
+                            <Text style={[s.small, { fontSize: 10 }]}>
+                              {investmentProfit(ledger, a) === null
+                                ? "待录入成本后计算收益"
+                                : "收益 " + money(investmentProfit(ledger, a)!)}
+                            </Text>
+                          )}
+                        </View>
+                        <Pressable
+                          accessibilityLabel={a.name + "账户操作"}
+                          style={s.more}
+                          onPress={() => accountActions(a)}
+                        >
+                          <Text style={{ fontSize: 20, color: C.muted }}>
+                            ⋯
+                          </Text>
+                        </Pressable>
+                      </View>
+                    ))}
+                </View>
+              ))}
+            </>
+          )}
+          {page === "导入" && (
+            <>
+              <Text style={s.small}>
+                正数为支出，负数为退款收入；疑似重复需人工核对。
+              </Text>
+              <Text style={s.label}>入账账户</Text>
+              <Choices
+                values={ledger.accounts
+                  .filter((a) => !a.hidden)
+                  .map((a) => ({ id: a.id, label: a.name }))}
+                value={importAccount}
+                change={setImportAccount}
+              />
+              <Input
+                label="账单年份（MM/DD 格式）"
+                value={billYear}
+                change={setBillYear}
+                number
+              />
+              <Input label="账单文本" value={text} change={setText} multiline />
               <Button
-                label={`导入所选 ${Object.values(selection).filter(Boolean).length} 笔`}
-                disabled={busy}
+                label="解析并对账"
                 onPress={() => {
-                  void mutate((l) =>
-                    preview.reduce(
-                      (next, t, i) =>
-                        selection[i]
-                          ? saveTransaction(next, {
-                              ...t,
-                              id: Crypto.randomUUID(),
-                            })
-                          : next,
-                      l,
-                    ),
-                  )
-                    .then(() => {
-                      setPreview([]);
-                      setText("");
-                      setPage("账单");
-                    })
-                    .catch((e) => Alert.alert("导入失败", e.message));
+                  try {
+                    if (!importAccount) throw Error("选择入账账户");
+                    if (!/^\d{4}$/.test(billYear)) throw Error("输入四位年份");
+                    const rows = parseBill(
+                      text,
+                      importAccount,
+                      Number(billYear),
+                    );
+                    if (!rows.length)
+                      throw Error("未识别交易，请检查日期、说明和金额列");
+                    setPreview(rows);
+                    setSelection(
+                      Object.fromEntries(
+                        rows.map((t, i) => [i, reconcile(ledger, t) === "new"]),
+                      ),
+                    );
+                  } catch (error: unknown) {
+                    const e = { message: errorMessage(error) };
+                    Alert.alert("无法解析", e.message);
+                  }
                 }}
               />
-            )}
-          </>
-        )}
-        {page === "报表" && <AnnualReview />}
-        {page === "设置" && (
-          <>
-            <Text style={s.section}>本地账本</Text>
-            <View style={s.card}>
-              <View style={{ flex: 1 }}>
-                <Text style={s.name}>
-                  {ledger.accounts.length} 个账户 · {ledger.transactions.length}{" "}
-                  笔交易
-                </Text>
-                <Text style={s.small}>SQLite 本机保存，支持离线使用</Text>
+              {preview.map((t, i) => {
+                const match = reconcile(ledger, t);
+                return (
+                  <Pressable
+                    key={i}
+                    onPress={() =>
+                      setSelection({ ...selection, [i]: !selection[i] })
+                    }
+                    style={s.card}
+                  >
+                    <Text>{selection[i] ? "☑" : "☐"}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.name}>{t.merchant}</Text>
+                      <Text
+                        style={[
+                          s.small,
+                          { color: match === "new" ? C.green : C.red },
+                        ]}
+                      >
+                        {t.date} ·{" "}
+                        {match === "new"
+                          ? "新增"
+                          : match === "duplicate"
+                            ? "重复"
+                            : "日期接近，需核对"}
+                      </Text>
+                    </View>
+                    <Text>{money(t.cents)}</Text>
+                  </Pressable>
+                );
+              })}
+              {preview.length > 0 && (
+                <Button
+                  label={`导入所选 ${Object.values(selection).filter(Boolean).length} 笔`}
+                  disabled={busy}
+                  onPress={() => {
+                    void mutate((l) =>
+                      preview.reduce(
+                        (next, t, i) =>
+                          selection[i]
+                            ? saveTransaction(next, {
+                                ...t,
+                                id: Crypto.randomUUID(),
+                              })
+                            : next,
+                        l,
+                      ),
+                    )
+                      .then(() => {
+                        setPreview([]);
+                        setText("");
+                        setPage("账单");
+                      })
+                      .catch((e) => Alert.alert("导入失败", e.message));
+                  }}
+                />
+              )}
+            </>
+          )}
+          {page === "报表" && <AnnualReview />}
+          {page === "设置" && (
+            <>
+              <Text style={s.section}>本地账本</Text>
+              <View style={s.card}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.name}>
+                    {ledger.accounts.length} 个账户 ·{" "}
+                    {ledger.transactions.length} 笔交易
+                  </Text>
+                  <Text style={s.small}>SQLite 本机保存，支持离线使用</Text>
+                </View>
               </View>
-            </View>
-            <Button label="导出 JSON 备份" onPress={() => void backup()} />
-            <View style={{ height: 10 }} />
-            <Button
-              label="导入电脑账本 / 恢复备份"
-              quiet
-              onPress={() => void restore()}
-            />
-            <Text style={[s.small, { marginTop: 12 }]}>
-              {lastBackup ? "最后打开备份分享：" + lastBackup : "尚未导出备份"}
-            </Text>
-            <CloudSettings />
-          </>
-        )}
-      </ScrollView>
+              <Button label="导出 JSON 备份" onPress={() => void backup()} />
+              <View style={{ height: 10 }} />
+              <Button
+                label="导入电脑账本 / 恢复备份"
+                quiet
+                onPress={() => void restore()}
+              />
+              <Text style={[s.small, { marginTop: 12 }]}>
+                {lastBackup
+                  ? "最后打开备份分享：" + lastBackup
+                  : "尚未导出备份"}
+              </Text>
+              <CloudSettings />
+            </>
+          )}
+        </ScrollView>
+      )}
       <View style={s.tabs}>
         {(Object.keys(tabIcons) as Page[]).map((p) => (
           <Pressable

@@ -10,7 +10,8 @@ permissions:
   contents: read
 concurrency:
   group: ios-${{ github.ref }}
-  cancel-in-progress: true
+  # Preserve an in-flight IPA build; the newest pending commit waits behind it.
+  cancel-in-progress: false
 jobs:
   check:
     runs-on: ubuntu-latest
